@@ -52,7 +52,7 @@ document_names = None
 documents = None
 documents_embeddings = None
 
-def load_embeddings(file_path):
+def load_embeddings(file_path = "./data/embeddings.json"):
     """Initialize the global data from embeddings file"""
     global document_names, documents, documents_embeddings
     
@@ -62,3 +62,4 @@ def load_embeddings(file_path):
     document_names = data_loaded["document_names"]
     documents = data_loaded["documents"]
     documents_embeddings = data_loaded["embeddings"]
+    print("Vector library loaded successfully")

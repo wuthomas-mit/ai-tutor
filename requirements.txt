@@ -1,0 +1,8 @@
+voyageai
+langchain_community
+anthropic
+scikit-learn
+numpy
+matplotlib
+openai
+python-dotenv
