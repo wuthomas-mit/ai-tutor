@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .login-container {
+            width: 300px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .login-container h1 {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            border-color: #4a90e2;
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            background-color: #4a90e2;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .login-button:hover {
+            background-color: #357abd;
+        }
+
+        .error-message {
+            color: red;
+            font-size: 12px;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .success-message {
+            color: green;
+            font-size: 12px;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Login</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="userId">MIT ID Number</label>
+                <input type="text" id="userId" name="userId" required>
+            </div>
+            <button type="submit" class="login-button">Login</button>
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    const userId = document.getElementById('userId').value.trim();
+    const errorMessage = document.getElementById('errorMessage');
+
+    // Clear previous error message
+    errorMessage.textContent = '';
+
+    if (!userId) {
+        errorMessage.textContent = 'Please enter your ID number.';
+        return;
+    }
+
+    try {
+        const response = await fetch('/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ id: userId }),
+        });
+
+        if (response.redirected) {
+            // Handle redirection
+            window.location.href = response.url;
+        } else {
+            const data = await response.json();
+            errorMessage.textContent = data.message || 'An error occurred. Please try again.';
+        }
+    } catch (error) {
+        errorMessage.textContent = 'An error occurred. Please try again.';
+    }
+});
+    </script>
+</body>
+</html>
