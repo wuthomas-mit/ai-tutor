@@ -35,7 +35,7 @@ app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 # Configure the database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////Users/tommasoserafin/Desktop/MIT/Research/GenAI_x_Edu/Code/TA-GPT/TA_GPT.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///TA_GPT.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = FLASK_SECRET_KEY
 
