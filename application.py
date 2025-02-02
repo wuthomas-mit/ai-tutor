@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 from dotenv import load_dotenv
 
-from helpers import ask, init_clients, load_embeddings, login_required
+from helpers import ask, followup, init_clients, load_embeddings, login_required
 
 # Global variables
 
@@ -35,7 +35,7 @@ app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 # Configure the database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////Users/tommasoserafin/Desktop/MIT/Research/GenAI_x_Edu/Code/TA-GPT/TA_GPT.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///TA_GPT.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = FLASK_SECRET_KEY
 
@@ -89,6 +89,8 @@ def login():
 @app.route('/', methods=['GET'])
 @login_required
 def home():
+    # Reset the conversation state when loading the home page
+    session['is_first_question'] = True
     user_name = session.get('user_name', 'Guest')
     return render_template('chatbot.html', user_name=user_name)
 
@@ -97,10 +99,18 @@ def home():
 @login_required
 def chat():
     user_message = request.json.get('message', '')
-
-    # Bot response
-    bot_response = ask(user_message, documents_embeddings)
-
+    
+    # Check if this is the first question in the conversation
+    is_first_question = session.get('is_first_question', True)
+    
+    if is_first_question:
+        # First question uses ask()
+        bot_response = ask(user_message)
+        session['is_first_question'] = False  # Update the conversation state
+    else:
+        # Subsequent questions use followup()
+        bot_response = followup(user_message)
+    
     return jsonify({'response': bot_response})
 
 # Ensure a user is logged in before any request except /login
