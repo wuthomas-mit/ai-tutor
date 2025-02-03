@@ -67,7 +67,7 @@ threshold = 0.5
 nb_followup = 1
 context = ""
 
-def load_embeddings(file_path = "./data/embeddings.json"):
+def load_embeddings(file_path = "./data/embeddings.json",long = True):
     """Initialize the global data from embeddings file"""
     global document_names, documents, documents_embeddings
     
@@ -78,8 +78,8 @@ def load_embeddings(file_path = "./data/embeddings.json"):
     documents = data_loaded["documents"]
     documents_embeddings = data_loaded["embeddings"]
     print("Vector library loaded successfully")
-
-    #return document_names, documents, documents_embeddings
+    if long:
+        return document_names, documents, documents_embeddings
 
 
 def k_nearest_neighbors(query_embedding, documents_embeddings, k=10):
