@@ -3,7 +3,6 @@ import voyageai
 import anthropic
 import json
 import os
-import streamlit as st
 from dotenv import load_dotenv
 
 from functools import wraps
@@ -36,15 +35,11 @@ load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
-    ANTHROPIC_API_KEY = st.secrets["ANTHROPIC_API_KEY"]
-    if not ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY is not set in the environment!")
+    raise ValueError("ANTHROPIC_API_KEY is not set in the environment!")
 
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
 if not VOYAGE_API_KEY:
-    VOYAGE_API_KEY    = st.secrets["VOYAGE_API_KEY"]
-    if not VOYAGE_API_KEY:
-        raise ValueError("VOYAGE_API_KEY is not set in the environment!")
+    raise ValueError("VOYAGE_API_KEY is not set in the environment!")
 
 # Initialize global clients as None
 vo = None
