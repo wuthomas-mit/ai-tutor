@@ -9,4 +9,4 @@ python-dotenv
 flask
 flask_session
 flask_sqlalchemy
-functools
+streamlit
