@@ -79,7 +79,7 @@ def load_embeddings(file_path = "./data/embeddings.json"):
     documents_embeddings = data_loaded["embeddings"]
     print("Vector library loaded successfully")
 
-    return document_names, documents, documents_embeddings
+    #return document_names, documents, documents_embeddings
 
 
 def k_nearest_neighbors(query_embedding, documents_embeddings, k=10):
