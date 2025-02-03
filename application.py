@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template, session, redirect, g
 from flask_session import Session
 from flask_sqlalchemy import SQLAlchemy
+import streamlit as st
 import os
 from dotenv import load_dotenv
 
@@ -17,15 +18,21 @@ load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
-    raise ValueError("ANTHROPIC_API_KEY is not set in the environment!")
+    ANTHROPIC_API_KEY = st.secrets["ANTHROPIC_API_KEY"]
+    if not ANTHROPIC_API_KEY:
+        raise ValueError("ANTHROPIC_API_KEY is not set in the environment!")
 
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
 if not VOYAGE_API_KEY:
-    raise ValueError("VOYAGE_API_KEY is not set in the environment!")
+    VOYAGE_API_KEY    = st.secrets["VOYAGE_API_KEY"]
+    if not VOYAGE_API_KEY:
+        raise ValueError("VOYAGE_API_KEY is not set in the environment!")
 
-FLASK_SECRET_KEY = os.getenv("VOYAGE_API_KEY")
+FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
 if not FLASK_SECRET_KEY:
-    raise ValueError("FLASK_SECRET_KEY is not set in the environment!")
+    FLASK_SECRET_KEY  = st.secrets["FLASK_SECRET_KEY"]
+    if not FLASK_SECRET_KEY:
+        raise ValueError("FLASK_SECRET_KEY is not set in the environment!")
 
 ####################################################
 
