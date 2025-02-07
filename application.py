@@ -14,6 +14,8 @@ client = None
 
 # Load environmental variables
 load_dotenv()
+init_clients()
+document_names, documents, documents_embeddings = load_embeddings()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
