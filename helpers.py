@@ -223,7 +223,7 @@ def ask(query):
     )
     
     context = f"Student: {query}\nSyllabusGPT: {response.content[0].text}"
-    return postprocess(response.content[0].text) + format_sources(filtered_results, retrieved_doc_names)
+    return postprocess(response.content[0].text) + format_sources(filtered_results, retrieved_doc_names), format_sources(filtered_results, retrieved_doc_names)
 
 def followup(followup_question):
     """Handle follow-up questions with context awareness"""
@@ -249,4 +249,4 @@ def followup(followup_question):
     )
     
     context += f"\nStudent: {followup_question}\nSyllabusGPT: {response.content[0].text}"
-    return postprocess(response.content[0].text) + format_sources(filtered_results, retrieved_doc_names)
+    return postprocess(response.content[0].text) + format_sources(filtered_results, retrieved_doc_names), format_sources(filtered_results, retrieved_doc_names)

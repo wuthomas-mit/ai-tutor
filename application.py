@@ -1,14 +1,13 @@
 from flask import Flask, request, jsonify, render_template, session, redirect, g
-from flask_session import Session
+from flask_session import Session as FlaskSession
 from flask_sqlalchemy import SQLAlchemy
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 
 from helpers import ask, followup, init_clients, load_embeddings, login_required
 
 # Global variables
-
-# Initialize global clients as None
 vo = None
 client = None
 
@@ -23,112 +22,213 @@ VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
 if not VOYAGE_API_KEY:
     raise ValueError("VOYAGE_API_KEY is not set in the environment!")
 
-FLASK_SECRET_KEY = os.getenv("VOYAGE_API_KEY")
+FLASK_SECRET_KEY = os.getenv("FLASK_API_KEY")
 if not FLASK_SECRET_KEY:
     raise ValueError("FLASK_SECRET_KEY is not set in the environment!")
 
 ####################################################
-
 app = Flask(__name__)
 
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
-# Configure the database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///TA_GPT.db'
+# Determine the absolute directory path of the current file (application.py)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# Build the full absolute path to TA_GPT.db
+DATABASE_PATH = os.path.join(BASE_DIR, "TA_GPT.db")
+print("Database path:", DATABASE_PATH)
+
+# Configure SQLAlchemy with the absolute path
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DATABASE_PATH}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = FLASK_SECRET_KEY
 
 # Configure server-side session storage
-app.config['SESSION_TYPE'] = 'filesystem'  # Can also be 'redis', 'memcached', etc.
-app.config['SESSION_FILE_DIR'] = './flask_sessions'  # Where to store session files
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = './flask_sessions'
 app.config['SESSION_PERMANENT'] = False
-Session(app)
+FlaskSession(app)
 
 db = SQLAlchemy(app)
 
-# Define the User model
+##############################################
+# DATABASE MODELS
+##############################################
+
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), nullable=False)
 
-# Ensure database tables are created
+class ChatSession(db.Model):
+    __tablename__ = 'sessions'
+    session_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=True)
+
+class Question(db.Model):
+    __tablename__ = 'questions'
+    question_id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('sessions.session_id'), nullable=False)
+    question = db.Column(db.Text, nullable=False)
+    context = db.Column(db.Text, nullable=False)  # Can store JSON as text
+    time = db.Column(db.DateTime, nullable=False)
+
+class Answer(db.Model):
+    __tablename__ = 'answers'
+    answer_id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('sessions.session_id'), nullable=False)
+    answer = db.Column(db.Text, nullable=False)
+    sources = db.Column(db.Text, nullable=False)
+    # Now allow feedback to be None (no feedback), True (thumbs up), or False (thumbs down)
+    feedback = db.Column(db.Boolean, nullable=True)
+    time = db.Column(db.DateTime, nullable=False)
+
 with app.app_context():
-    # db.drop_all()
     db.create_all()
     users = User.query.all()
-    print(users)  # Should list all users
+    print("Existing users:", users)
 
-# Serve the login page
+##############################################
+# ROUTES
+##############################################
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-
     session.clear()
 
     if request.method == 'POST':
-        data = request.get_json()  # Ensure you are receiving JSON data
+        data = request.get_json()  # Expecting JSON data
         user_id = str(data.get('id'))
 
         if not user_id:
             return jsonify({'message': 'User ID is required!'}), 400
 
-        # Check if the user exists in the database
-        user = User.query.get(user_id)
+        # Use the new Session.get() method instead of Query.get()
+        user = db.session.get(User, user_id)
         if user:
-            session['user_id'] = user.id  # Save user ID in the session
-            session['user_name'] = user.name  # Save user name in the session
+            # Create a new ChatSession record
+            new_session = ChatSession(
+                user_id=user.id,
+                start_time=datetime.now(),
+                end_time=None
+            )
+            db.session.add(new_session)
+            db.session.commit()
+
+            # Save user info and chat_session_id in Flask session
+            session['user_id'] = user.id
+            session['user_name'] = user.name
+            session['chat_session_id'] = new_session.session_id
+
             return redirect("/")
         else:
             return jsonify({'message': 'User not found!'}), 404
 
-    # If GET request, serve the login page
     return render_template('login.html')
 
-# Serve the chatbot page
 @app.route('/', methods=['GET'])
 @login_required
 def home():
-    # Reset the conversation state when loading the home page
     session['is_first_question'] = True
     user_name = session.get('user_name', 'Guest')
-    return render_template('chatbot.html', user_name=user_name)
+    return render_template('chatbot_v2.html', user_name=user_name)
 
-# Handle chat requests
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
     user_message = request.json.get('message', '')
-    
-    # Check if this is the first question in the conversation
+    chat_session_id = session.get('chat_session_id')
+
+    # Log the question in the database
+    question_obj = Question(
+        session_id=chat_session_id,
+        question=user_message,
+        context='{}',  # Placeholder for any JSON context
+        time=datetime.now()
+    )
+    db.session.add(question_obj)
+    db.session.commit()
+
+    # Get the bot response using ask() or followup() based on conversation state
     is_first_question = session.get('is_first_question', True)
-    
     if is_first_question:
-        # First question uses ask()
-        bot_response = ask(user_message)
-        session['is_first_question'] = False  # Update the conversation state
+        bot_response, sources = ask(user_message)
+        session['is_first_question'] = False
     else:
-        # Subsequent questions use followup()
-        bot_response = followup(user_message)
-    
+        bot_response, sources = followup(user_message)
+
+    # Log the answer in the database with default feedback value as None (meaning no feedback yet)
+    answer_obj = Answer(
+        session_id=chat_session_id,
+        answer=bot_response,
+        sources=sources,     # If you have source info, add it here
+        feedback=None,  # No feedback provided yet
+        time=datetime.now()
+    )
+    db.session.add(answer_obj)
+    db.session.commit()
+
     return jsonify({'response': bot_response})
 
-# Ensure a user is logged in before any request except /login
+@app.route('/feedback', methods=['POST'])
+@login_required
+def feedback():
+    """
+    Receives feedback for a bot answer from the front end.
+    Expects a JSON payload with:
+      - message: the answer text from the bot
+      - feedback: boolean value (True for thumbs up, False for thumbs down)
+    Finds the corresponding Answer record (by matching session and answer text)
+    and updates its feedback value.
+    """
+    data = request.get_json()
+    message_text = data.get('message')
+    feedback_value = data.get('feedback')
+    chat_session_id = session.get('chat_session_id')
+    
+    if chat_session_id is None:
+        return jsonify({'message': 'No active chat session.'}), 400
+
+    # Find the latest answer record in this session with matching answer text
+    answer_record = Answer.query.filter_by(session_id=chat_session_id, answer=message_text)\
+                        .order_by(Answer.time.desc()).first()
+
+    if answer_record:
+        answer_record.feedback = feedback_value
+        db.session.commit()
+        return jsonify({'message': 'Feedback updated.'}), 200
+    else:
+        return jsonify({'message': 'Answer record not found.'}), 404
+
 @app.before_request
 def require_login():
     if not session.get("user_id") and request.endpoint not in ["login", "static"]:
         return redirect("/login")
-    
-# Logout route
+
 @app.route('/logout', methods=['GET'])
 def logout():
-    session.clear()  # Clear the session
-    return redirect('/login')  # Redirect to the login page
+    chat_session_id = session.get('chat_session_id')
+    if chat_session_id:
+        # Use the new API to fetch the ChatSession record
+        chat_sess = db.session.get(ChatSession, chat_session_id)
+        if chat_sess:
+            chat_sess.end_time = datetime.now()
+            db.session.commit()
 
+    session.clear()
+    return redirect('/login')
+
+###################################################
 # Initialize the clients and load embeddings
+###################################################
 if __name__ == '__main__':
-    # Initialize clients and load embeddings
     init_clients()
     document_names, documents, documents_embeddings = load_embeddings()
-
     app.run(debug=True)
+
+
+
+
