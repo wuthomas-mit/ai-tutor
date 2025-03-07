@@ -8,11 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
 from functools import wraps
 from flask import session, redirect
-
-# from langchain.document_loaders import TextLoader
-# from langchain.text_splitter import CharacterTextSplitter
-
-
+from datetime import datetime
 
 # Require login to access chatbot
 def login_required(f):
@@ -65,13 +61,6 @@ threshold = 0.5
 nb_followup = 1
 context = ""
 
-
-
-import json
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-import anthropic
-from datetime import datetime
 
 # Load embeddings and documents metadata
 def load_embeddings(file_path ="./embeddings.json",long = True):
