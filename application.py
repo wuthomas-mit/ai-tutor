@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-
+import json
 from helpers import ask, followup, init_clients, load_embeddings, login_required
 
 # Global variables
@@ -142,14 +142,23 @@ def home():
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
-    user_message = request.json.get('message', '')
+    data = request.json
+    user_message = data.get('message', '')
+    images = data.get('images', [])
     chat_session_id = session.get('chat_session_id')
+
+    # Create a JSON representation of the context that includes the images
+    context_data = {
+        'text': user_message,
+        'has_images': len(images) > 0,
+        'image_count': len(images)
+    }
 
     # Log the question in the database
     question_obj = Question(
         session_id=chat_session_id,
         question=user_message,
-        context='{}',  # Placeholder for any JSON context
+        context=json.dumps(context_data),  # Store context as JSON
         time=datetime.now()
     )
     db.session.add(question_obj)
@@ -158,16 +167,16 @@ def chat():
     # Get the bot response using ask() or followup() based on conversation state
     is_first_question = session.get('is_first_question', True)
     if is_first_question:
-        bot_response, sources = ask(user_message)
+        bot_response, sources = ask(user_message, images)
         session['is_first_question'] = False
     else:
-        bot_response, sources = followup(user_message)
+        bot_response, sources = followup(user_message, images)
 
     # Log the answer in the database with default feedback value as None (meaning no feedback yet)
     answer_obj = Answer(
         session_id=chat_session_id,
         answer=bot_response,
-        sources=sources,     # If you have source info, add it here
+        sources=sources,
         feedback=None,  # No feedback provided yet
         time=datetime.now()
     )
@@ -175,6 +184,7 @@ def chat():
     db.session.commit()
 
     return jsonify({'response': bot_response})
+
 
 @app.route('/feedback', methods=['POST'])
 @login_required

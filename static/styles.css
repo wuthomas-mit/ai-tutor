@@ -225,3 +225,79 @@ body {
   background-color: rgba(0, 0, 0, 0.2);
   border-radius: 4px;
 }
+
+
+/* Image preview container */
+.image-preview-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* Individual image preview */
+.image-preview {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e5e5;
+}
+
+.image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Remove image button */
+.remove-image-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.remove-image-btn:hover {
+  opacity: 1;
+}
+
+/* Images in sent messages */
+.sent-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sent-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+}
+
+/* Adjust message content to handle images better */
+.message-content {
+  max-width: 80%;
+  padding: 12px 24px;
+  border-radius: 12px;
+  line-height: 1.5;
+}
+
+.bot-message .message-content img {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 8px 0;
+}
