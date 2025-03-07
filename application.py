@@ -14,7 +14,7 @@ client = None
 # Load environmental variables
 load_dotenv()
 init_clients()
-document_names, documents, documents_embeddings = load_embeddings()
+document_names, documents, embeddings , metadata = load_embeddings()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
@@ -229,7 +229,7 @@ def logout():
 ###################################################
 if __name__ == '__main__':
     init_clients()
-    document_names, documents, documents_embeddings = load_embeddings()
+    document_names, documents, embeddings ,  metadata = load_embeddings()
     app.run(debug=True)
 
 
