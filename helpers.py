@@ -64,7 +64,7 @@ context = ""
 
 # Load embeddings and documents metadata
 def load_embeddings(file_path ="./embeddings.json",long = True):
-    with open(file_path, "r") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         data_loaded = json.load(f)
     
     document_names = data_loaded["document_names"]
@@ -454,13 +454,13 @@ def ask(query, images=None):
     else:
           prereq_results, prereq_doc_names, prereq_reranked_results, prereq_docs = retriever(full_query + " / " + rewritten_query, 0.75, top_k, False, filter_conditions={"visibility": False})
           if not prereq_results:
-              return f"I apologize I am not sure. You may want to reformulate the question or ask a TA."
+              return f"I apologize I am not sure. You may want to reformulate the question or ask a TA.", Sources
           Sources = "\n\nSources ordered by relevance:\n"
           for doc, score, global_index in filtered_results:
               doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
               Sources += f"- {doc_name} (Cosine similarity Score: {100 * score:.2f}/100)\n"
           doc, score, index = prereq_results[0]
-          prereq_doc_name = document_names[index]
+          prereq_doc_name = prereq_doc_names[0] #document_names[index]
           Sources += f"- Knowledge from the {prereq_doc_name} prerequisite\n"
           retrieved_docs = retrieved_docs + prereq_docs
               
@@ -500,13 +500,12 @@ def followup(followup_question, images = None):
     global nb_followup, context
     nb_followup += 1
     top_k=4
-    
+    Sources = ""
     if nb_followup >= 3:
-        return "This question seems more complicated than expected, you may want to discuss it further with your TAs"
+        return "This question seems more complicated than expected, you may want to discuss it further with your TAs" , Sources
     
     filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, True ,filter_conditions={"visibility": True})
-    Sources = ""
-
+    
     if len(filtered_results) == top_k:
         Sources = "\n\nSources ordered by relevance:\n"
         for doc, score, global_index in filtered_results:
@@ -515,7 +514,7 @@ def followup(followup_question, images = None):
     else:
           prereq_results, prereq_doc_names, prereq_reranked_results, prereq_docs = retriever(full_query + " / " + rewritten_query, 0.75, top_k, True, filter_conditions={"visibility": False})
           if not prereq_results:
-              return f"I apologize I am not sure. You may want to reformulate the question or ask a TA."
+              return f"I apologize I am not sure. You may want to reformulate the question or ask a TA.", Sources
           Sources = "\n\nSources ordered by relevance:\n"
           for doc, score, global_index in filtered_results:
               doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
