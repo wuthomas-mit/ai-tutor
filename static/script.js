@@ -1,5 +1,6 @@
 const messagesContainer = document.getElementById('messages');
 const messageInput = document.getElementById('message-input');
+let pastedImages = []; // Array to store pasted images
 
 // Auto-resize textarea
 messageInput.addEventListener('input', function() {
@@ -12,13 +13,92 @@ messageInput.addEventListener('keydown', async function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         const message = this.value.trim();
-        if (message) {
+        if (message || pastedImages.length > 0) {
             await sendMessage(message);
             this.value = '';
             this.style.height = 'auto';
+            // Clear images after sending
+            pastedImages = [];
+            updateImagePreviewDisplay();
         }
     }
 });
+
+// Handle paste events
+document.addEventListener('paste', function(e) {
+    if (document.activeElement === messageInput) {
+        const items = e.clipboardData.items;
+        let imageFound = false;
+        
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                imageFound = true;
+                const blob = items[i].getAsFile();
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    const base64data = event.target.result;
+                    pastedImages.push({
+                        data: base64data,
+                        type: blob.type
+                    });
+                    updateImagePreviewDisplay();
+                };
+                
+                reader.readAsDataURL(blob);
+            }
+        }
+        
+        // If we found and handled an image, prevent the default paste behavior
+        if (imageFound) {
+            e.preventDefault();
+        }
+    }
+});
+
+// Create image preview container
+function createImagePreviewContainer() {
+    let container = document.getElementById('image-preview-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'image-preview-container';
+        container.className = 'image-preview-container';
+        document.querySelector('.input-container').insertBefore(container, messageInput);
+    }
+    return container;
+}
+
+// Update image preview display
+function updateImagePreviewDisplay() {
+    const container = createImagePreviewContainer();
+    
+    // Clear existing previews
+    container.innerHTML = '';
+    
+    // Add new previews
+    pastedImages.forEach((img, index) => {
+        const preview = document.createElement('div');
+        preview.className = 'image-preview';
+        
+        const image = document.createElement('img');
+        image.src = img.data;
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-image-btn';
+        removeBtn.innerHTML = '×';
+        removeBtn.addEventListener('click', () => {
+            pastedImages.splice(index, 1);
+            updateImagePreviewDisplay();
+        });
+        
+        preview.appendChild(image);
+        preview.appendChild(removeBtn);
+        container.appendChild(preview);
+    });
+    
+    // Show/hide container based on whether there are images
+    container.style.display = pastedImages.length > 0 ? 'flex' : 'none';
+}
 
 function createFeedbackButtons() {
     const container = document.createElement('div');
@@ -36,7 +116,7 @@ function createFeedbackButtons() {
         if (!this.classList.contains('active-positive')) {
             this.classList.add('active-positive');
             thumbsDown.classList.remove('active-negative');
-            saveFeedback('positive');
+            saveFeedback(true);
         }
     });
     
@@ -44,7 +124,7 @@ function createFeedbackButtons() {
         if (!this.classList.contains('active-negative')) {
             this.classList.add('active-negative');
             thumbsUp.classList.remove('active-positive');
-            saveFeedback('negative');
+            saveFeedback(false);
         }
     });
     
@@ -55,12 +135,17 @@ function createFeedbackButtons() {
 
 async function saveFeedback(type) {
     try {
+        const lastBotMessage = document.querySelector('.bot-message:last-of-type .message-content').innerHTML;
+        
         await fetch('/feedback', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ feedback: type }),
+            body: JSON.stringify({ 
+                message: lastBotMessage,
+                feedback: type 
+            }),
         });
     } catch (error) {
         console.error('Error saving feedback:', error);
@@ -71,12 +156,32 @@ async function sendMessage(message) {
     // Disable input while processing
     messageInput.disabled = true;
     
-    // Add user message to chat
+    // Create payload with both text and images
+    const payload = {
+        message: message
+    };
+    
+    if (pastedImages.length > 0) {
+        payload.images = pastedImages;
+    }
+    
+    // Add user message to chat with image previews if any
     const userMessageElement = document.createElement('div');
     userMessageElement.className = 'message user-message';
-    userMessageElement.innerHTML = `
-        <div class="message-content">${escapeHtml(message)}</div>
-    `;
+    
+    let messageHTML = `<div class="message-content">${escapeHtml(message)}`;
+    
+    // Add image previews to the message
+    if (pastedImages.length > 0) {
+        messageHTML += `<div class="sent-images">`;
+        pastedImages.forEach(img => {
+            messageHTML += `<img src="${img.data}" class="sent-image">`;
+        });
+        messageHTML += `</div>`;
+    }
+    
+    messageHTML += `</div>`;
+    userMessageElement.innerHTML = messageHTML;
     messagesContainer.appendChild(userMessageElement);
 
     try {
@@ -99,7 +204,7 @@ async function sendMessage(message) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
@@ -160,6 +265,7 @@ async function sendMessage(message) {
 
 // Utility function to escape HTML and prevent XSS
 function escapeHtml(unsafe) {
+    if (!unsafe) return '';
     return unsafe
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
