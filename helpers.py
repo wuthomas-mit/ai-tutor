@@ -359,7 +359,7 @@ Reference to Future Materials: If certain documents (e.g., lecture slides) are n
 Key Objective: Always deliver comprehensive, technically precise answers. If an answer is not fully supported by the documents, explicitly acknowledge this and redirect the student as needed.
 """
 
-preprompt_followup =  """You are a bot called BeaverOpt and your primary role is to assist students."""
+preprompt_followup =  """You are a bot called BeaverGPT and your primary role is to assist students."""
 
 
 postprompt_followup = """
@@ -474,7 +474,7 @@ def ask(query, images=None):
         messages=[{"role": "user", "content": prompt}]
     )
 
-    context = f"Student: {query + image_description}\nBeaverOpt: {response.content[0].text}"
+    context = f"Student: {query + image_description}\nBeaverGPT: {response.content[0].text}"
     return postprocess(response.content[0].text) + Sources, Sources
 
 
@@ -533,5 +533,5 @@ def followup(followup_question, images = None):
         messages=[{"role": "user", "content": prompt}]
     )
     
-    context += f"\nStudent: {followup_question + image_description}\nBeaverOpt: {response.content[0].text}"
+    context += f"\nStudent: {followup_question + image_description}\nBeaverGPT: {response.content[0].text}"
     return postprocess(response.content[0].text) + Sources, Sources
