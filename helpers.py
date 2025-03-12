@@ -334,7 +334,7 @@ def process_image(image_data):
         return "[Image could not be processed]"
 
 # Prompt templates
-preprompt =  """You are a Teaching Assistant chatbot for a STEM course. Your priority is to deliver detailed, precise, and technically accurate answers grounded in the provided course documents. When unsure, you must clearly indicate any limitations and suggest consulting teaching staff or official resources after doing your best to understand the question""" #here we would use the real date and time
+preprompt =  """You are a Teaching Assistant chatbot for a STEM course. Your priority is to deliver detailed, precise, and technically accurate answers grounded in the provided course documents. When unsure, you must clearly indicate any limitations and suggest consulting teaching staff or official resources after doing your best to understand the question. Today's date is""" + str(datetime.today()) #here we would use the real date and time
 
 
 postprompt= """
@@ -359,7 +359,7 @@ Reference to Future Materials: If certain documents (e.g., lecture slides) are n
 Key Objective: Always deliver comprehensive, technically precise answers. If an answer is not fully supported by the documents, explicitly acknowledge this and redirect the student as needed.
 """
 
-preprompt_followup =  """You are a bot called BeaverGPT and your primary role is to assist students."""
+preprompt_followup =  """You are a Teaching Assistant chatbot for a STEM course. Your priority is to deliver detailed, precise, and technically accurate answers grounded in the provided course documents. When unsure, you must clearly indicate any limitations and suggest consulting teaching staff or official resources after doing your best to understand the question. Today's date is""" + str(datetime.today())
 
 
 postprompt_followup = """
