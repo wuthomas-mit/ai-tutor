@@ -4,6 +4,7 @@ import anthropic
 import json
 import base64
 import numpy as np
+import re
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
 from functools import wraps
@@ -93,6 +94,204 @@ def load_embeddings(file_path ="./embeddings.json",long = True):
         return document_names, documents, embeddings, metadata
     
 document_names, documents, embeddings , metadata = load_embeddings()
+
+
+def classify_query(query):
+    """
+    Determines the type and intent of the query
+
+    Args:
+        query: The student query
+
+    Returns:
+        Dictionary with classification details
+    """
+    prompt = f"""
+    Classify this student query: "{query}"
+
+    Return a JSON with only these fields:
+    - type: ["content_question", "clarification", "administrative", "prompt_attack", "off_topic"]
+    - confidence: number between 0-1
+    - reasoning: brief explanation of classification
+
+    RETURN ONLY THE JSON WITHOUT ANY ADDITIONAL TEXT.
+    """
+
+    # Call Claude and parse response (with a smaller model for speed)
+    response = client.messages.create(
+        model="claude-3-5-haiku-latest",  # Using haiku for speed
+        temperature=0,
+        max_tokens=150,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    # Parse response to extract JSON
+    try:
+        content = response.content[0].text.strip()
+        # Try to find JSON pattern in the response
+        json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group(1))
+        else:
+            # If no JSON pattern found, try parsing the whole response
+            result = json.loads(content)
+
+        return result
+    except Exception as e:
+        print(f"Error parsing classification response: {str(e)}")
+        # Return default classification if parsing fails
+        return {"type": "content_question", "confidence": 0.7, "reasoning": "Default classification due to parsing error"}
+
+# ==============================================================
+# SOURCE SELECTION FUNCTIONS
+# ==============================================================
+
+def select_source_type(query):
+    """
+    Determines which source type is most appropriate for answering the query
+
+    Args:
+        query: The student query
+
+    Returns:
+        Dictionary with source type and filter conditions
+    """
+    prompt = f"""
+    Determine the most appropriate source type for this student query: "{query}"
+
+    Available source types:
+
+    1. Content - It is a broad question or a on a topic about the course.
+    2. Exercises - It is a question on an exercice, or a method applied in class
+    3. Administrative - It is a general question about how the class operates, not technical
+    4. Everything - In case of slightest doubt use or the question is too complex (default)
+
+    Return a JSON with only these fields:
+    - source_type: ["Everything", "Content", "Exercises", "Administrative"]
+    - confidence: number between 0-1
+    - reasoning: brief explanation for your choice
+
+    RETURN ONLY THE JSON WITHOUT ANY ADDITIONAL TEXT.
+    """
+
+    # Call Claude and parse response
+    response = client.messages.create(
+        model="claude-3-5-haiku-latest",  # Using haiku for speed
+        temperature=0,
+        max_tokens=150,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    # Parse response to extract JSON
+    try:
+        content = response.content[0].text.strip()
+        json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+        if json_match:
+            source_info = json.loads(json_match.group(1))
+        else:
+            source_info = json.loads(content)
+
+        # Convert source type to filter conditions
+        filter_conditions = source_type_to_filters(source_info["source_type"])
+
+        # Combine results
+        result = {
+            "source_type": source_info["source_type"],
+            "confidence": source_info["confidence"],
+            "reasoning": source_info["reasoning"],
+            "filter_conditions": filter_conditions
+        }
+
+        return result
+    except Exception as e:
+        print(f"Error parsing source selection response: {str(e)}")
+        # Return default source type if parsing fails
+        return {
+            "source_type": "Everything",
+            "confidence": 0.5,
+            "reasoning": "Default selection due to parsing error",
+            "filter_conditions": {}  # No filters for "Everything"
+        }
+
+def source_type_to_filters(source_type):
+    """Converts source type to appropriate filter conditions"""
+
+    if source_type == "Content":
+        return {"category": "Lectures"}
+    elif source_type == "Exercises":
+        return {"category": ["Lecture", "Recitation"], "type": "pdf"}
+    elif source_type == "Administrative":
+        return {"category": "Others"}
+    else:  # "Everything" or any other value
+        return {}  # No filters
+
+# ==============================================================
+# RESPONSE VERIFICATION FUNCTIONS
+# ==============================================================
+
+def verify_response(query, response, source_documents):
+    """
+    Verifies the response against the source documents
+
+    Args:
+        query: Original student query
+        response: Generated response
+        source_documents: List of source documents used
+
+    Returns:
+        Dictionary with verification results
+    """
+    # Truncate documents and response to reduce token usage
+    truncated_docs = "\n".join([doc[:5000] + "..." if len(doc) > 5000 else doc for doc in source_documents])
+    truncated_response = response[:1000] + "..." if len(response) > 1000 else response
+
+    prompt = f"""
+    Verify this teaching assistant response:
+
+    QUERY: {query}
+
+    RESPONSE: {truncated_response}
+
+    BASED ON THESE SOURCE DOCUMENTS:
+    {truncated_docs}
+
+    Check if:
+    1. All factual claims in the response are supported by the source documents
+    2. The response doesn't contain speculative information
+    3. The response correctly answers the query
+
+    Return a JSON with these fields:
+    - verified: boolean
+    - confidence: number between 0-1
+    - issues: list of specific issues (empty if none)
+
+    Be conservative - only mark as verified if you're confident.
+    RETURN ONLY THE JSON WITHOUT ANY ADDITIONAL TEXT.
+    """
+
+    # Call Claude and parse response
+    response_obj = client.messages.create(
+        model="claude-3-5-haiku-latest",  # Using haiku for speed
+        temperature=0,
+        max_tokens=250,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    # Parse response to extract JSON
+    try:
+        content = response_obj.content[0].text.strip()
+        json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group(1))
+        else:
+            result = json.loads(content)
+
+        return result
+    except Exception as e:
+        print(f"Error parsing verification response: {str(e)}")
+        # Return default verification if parsing fails
+        return {"verified": True, "confidence": 0.5, "issues": ["Verification failed due to parsing error"]}
+
 
 def filter_by_metadata(metadata_list, filter_conditions):
     """
@@ -414,7 +613,7 @@ def rewrite(query, use_context):
   return response.content[0].text
 
 
-def ask(query, images=None):
+def ask(query, source_type, images=None):
     """Main function to get response for an initial query"""
 
         # Process images if present
@@ -432,10 +631,49 @@ def ask(query, images=None):
         image_description = ", accompanied of this image" + " ".join(image_descriptions) + ","
 
     
-    rewritten_query = rewrite(query + image_description, False)
-    print(rewritten_query)
+    # STEP 1: Pre-query processing - classify the query
+    print("Classifying query...")
+    classification = classify_query(full_query)
+    print(f"Query classified as: {classification['type']} with confidence {classification['confidence']}")
+
+    # Handle potential prompt attacks
+    if classification["type"] == "prompt_attack":
+        return "I'm unable to assist with this query. Please consult with your instructor.", "No sources used."
+    if classification["type"] == "off_topic":
+        return "I'm unable to assist with this query. Please consult with your instructor.", "No sources used."
+
+    # STEP 2: Rewrite query for better RAG performance
+    print("Rewriting query...")
+    rewritten_query = rewrite(full_query, False)
+    print(f"Rewritten query: {rewritten_query}")
+
     if rewritten_query == "False":
-        return "I don't feel like I can answer this question. Maybe you should ask the TAs?"
+        return "I don't feel like I can answer this question. Maybe you should ask the TAs?", "No sources used."
+
+    # STEP 3: Determine source type and filters
+    selected_source_type = source_type  # Store the source type for logging
+    
+    # If the source_type is specified and not 'Default', use that instead of auto-selecting
+    if source_type and source_type != 'Default':
+        print(f"Using specified source type: {source_type}")
+        filter_conditions = source_type_to_filters(source_type)
+    else:
+        # Auto-select source type
+        print("Auto-selecting source type...")
+        source_type = select_source_type(full_query)
+        filter_conditions = source_type["filter_conditions"]
+        # Update the selected source type for logging
+        selected_source_type = source_type["source_type"]
+        print(f"Auto-selected source type: {selected_source_type} with filters: {filter_conditions}")
+    
+    # Add visibility filter
+    filter_conditions["visibility"] = True
+    print(f"Selected source type: {selected_source_type} with filters: {filter_conditions}")
+    
+    # Add visibility filter
+    filter_conditions["visibility"] = True
+    print(f"Selected filters: {filter_conditions}")
+
     
     global nb_followup, context
     nb_followup = 0
@@ -443,7 +681,7 @@ def ask(query, images=None):
 
 
 
-    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, False, filter_conditions={"visibility": True})
+    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, False, filter_conditions)
     Sources = ""
 
     if len(filtered_results) == top_k:
@@ -467,19 +705,97 @@ def ask(query, images=None):
 
     prompt = f"{preprompt}\nYou must generate a response of {query}{image_description} only using {retrieved_docs}!{postprompt}"
     
-    response = client.messages.create(
+    response_obj = client.messages.create(
         model="claude-3-7-sonnet-latest",
         max_tokens=1024,
         temperature=0,
         messages=[{"role": "user", "content": prompt}]
     )
 
-    context = f"Student: {query + image_description}\nBeaverGPT: {response.content[0].text}"
-    return postprocess(response.content[0].text) + Sources, Sources
+    raw_response = response_obj.content[0].text
+
+    # STEP 6: Verify response quality
+    print("Verifying response...")
+    verification = verify_response(query, raw_response, retrieved_docs)
+    print(f"Verification result: {verification}")
+
+    # If verification fails, add a warning
+    final_response = raw_response
+    if not verification["verified"] and verification["confidence"] > 0.7:
+        return f"I apologize I am not sure. You may want to reformulate the question or ask a TA.", "No sources used."
+
+    # Post-process the response
+    final_response = postprocess(final_response)
+
+    # Update context for future questions (from original code)
+    context = f"Student: {query + image_description}\nBeaverGPT: {final_response}"
+
+    return final_response + Sources, Sources
 
 
-def followup(followup_question, images = None):
+def detect_followup_relation(followup_question, previous_context):
+    """
+    Determines if a follow-up question is related to the previous context
+    
+    Args:
+        followup_question: The follow-up question text
+        previous_context: The accumulated conversation context
+        
+    Returns:
+        Dictionary with relation details including whether to use context
+    """
+    prompt = f"""
+    Analyze if this follow-up question is related to the previous conversation:
+    
+    PREVIOUS CONVERSATION:
+    {previous_context}
+    
+    FOLLOW-UP QUESTION:
+    "{followup_question}"
+    
+    Return a JSON with only these fields:
+    - is_related: boolean (true if the follow-up is directly related to previous conversation)
+    - confidence: number between 0-1
+    - reasoning: brief explanation of your decision
+    
+    RETURN ONLY THE JSON WITHOUT ANY ADDITIONAL TEXT.
+    """
+    
+    # Call Claude and parse response
+    response = client.messages.create(
+        model="claude-3-5-haiku-latest",  # Using haiku for speed
+        temperature=0,
+        max_tokens=150,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    
+    # Parse response to extract JSON
+    try:
+        content = response.content[0].text.strip()
+        # Try to find JSON pattern in the response
+        json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group(1))
+        else:
+            # If no JSON pattern found, try parsing the whole response
+            result = json.loads(content)
+            
+        return result
+    except Exception as e:
+        print(f"Error parsing followup relation detection response: {str(e)}")
+        # Default to treating it as related if we can't determine
+        return {
+            "is_related": True,
+            "confidence": 0.5,
+            "reasoning": "Default to related due to parsing error"
+        }
+
+
+
+def followup(followup_question, source_type, images = None):
     """Handle follow-up questions with context awareness"""
+
+    global nb_followup, context
         # Process images if present
     image_descriptions = []
     image_description = ""
@@ -494,17 +810,55 @@ def followup(followup_question, images = None):
         full_query += " " + " ".join(image_descriptions)
         image_description = ", accompanied of this image" + " ".join(image_descriptions) + ","
 
-    
-    rewritten_query = rewrite(followup_question + image_description, True)
+     # STEP 1: Pre-query processing - classify the query
+    print("Classifying query...")
+    classification = classify_query(full_query)
+    print(f"Query classified as: {classification['type']} with confidence {classification['confidence']}")
 
-    global nb_followup, context
+    # Handle potential prompt attacks
+    if classification["type"] == "prompt_attack":
+        return "I'm unable to assist with this query. Please consult with your instructor.", "No sources used."
+    if classification["type"] == "off_topic":
+        return "I'm unable to assist with this query. Please consult with your instructor.", "No sources used."
+    
+    # Detect if the followup is related to previous context
+    relation_result = detect_followup_relation(followup_question, context)
+    use_context = relation_result["is_related"]  # Extract the boolean value from the dictionary
+    print(f"Context used: {use_context} (Confidence: {relation_result['confidence']})")
+
+    # STEP 2: Rewrite query for better RAG performance
+    print("Rewriting query...")
+    rewritten_query = rewrite(full_query, use_context)
+    print(f"Rewritten query: {rewritten_query}")
+
+    if rewritten_query == "False":
+        return "I don't feel like I can answer this question. Maybe you should ask the TAs?", "No sources used."
+
+    # STEP 3: Determine source type and filters
+    # If the source_type is specified and not 'Default', use that instead of auto-selecting
+    if source_type and source_type != 'Default':
+        print(f"Using specified source type: {source_type}")
+        filter_conditions = source_type_to_filters(source_type)
+    else:
+        # Auto-select source type
+        print("Auto-selecting source type...")
+        source_selection = select_source_type(full_query)
+        filter_conditions = source_selection["filter_conditions"]
+        # Store the selection for logging
+        selected_source_type = source_selection["source_type"]
+        print(f"Auto-selected source type: {selected_source_type} with filters: {filter_conditions}")
+    
+    # Add visibility filter
+    filter_conditions["visibility"] = True
+    print(f"Selected source type: {source_selection['source_type']} with filters: {filter_conditions}")
+
     nb_followup += 1
     top_k=4
     Sources = ""
     if nb_followup >= 3:
         return "This question seems more complicated than expected, you may want to discuss it further with your TAs" , Sources
     
-    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, True ,filter_conditions={"visibility": True})
+    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, use_context ,filter_conditions)
     
     if len(filtered_results) == top_k:
         Sources = "\n\nSources ordered by relevance:\n"
@@ -512,7 +866,7 @@ def followup(followup_question, images = None):
           doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
           Sources += f"- {doc_name} (Cosine similarity Score: {100 * score:.2f}/100)\n"
     else:
-          prereq_results, prereq_doc_names, prereq_reranked_results, prereq_docs = retriever(full_query + " / " + rewritten_query, 0.75, top_k, True, filter_conditions={"visibility": False})
+          prereq_results, prereq_doc_names, prereq_reranked_results, prereq_docs = retriever(full_query + " / " + rewritten_query, 0.75, top_k, use_context, filter_conditions={"visibility": False})
           if not prereq_results:
               return f"I apologize I am not sure. You may want to reformulate the question or ask a TA.", Sources
           Sources = "\n\nSources ordered by relevance:\n"
