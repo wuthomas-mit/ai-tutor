@@ -288,6 +288,94 @@ body {
   border-radius: 8px;
 }
 
+/* Source Type Selector Styles */
+.source-type-selector {
+  position: absolute;
+  display: inline-block;
+  right: 16px;     /* Position to the right */
+  top: 8px;        /* Position higher to align with the text box */
+  z-index: 10;
+}
+
+.source-type-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #f7f7f8;
+  border: 1px solid #e5e5e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;  /* Center the ellipsis horizontally */
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 18px;          /* Make the ellipsis larger */
+  line-height: 0;           /* Fix vertical alignment */
+  padding-bottom: 3px;      /* Fine-tune vertical centering of the ellipsis */
+}
+
+.source-type-button:hover {
+  background-color: #e5e5e5;
+}
+
+.source-type-dropdown {
+  position: absolute;
+  top: 40px;        /* Position dropdown below the button */
+  right: 0;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 8px 0;
+  min-width: 180px;
+  z-index: 100;
+  display: none;
+}
+
+.source-type-dropdown.show {
+  display: block;
+  animation: fadeIn 0.2s ease-in;
+}
+
+.source-type-option {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.source-type-option:hover {
+  background-color: #f7f7f8;
+}
+
+.source-type-option.selected {
+  font-weight: bold;
+  background-color: #f0f0f0;
+}
+
+/* Modify input container to properly position the selector */
+.input-container {
+  position: relative;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Adjust the input padding to not overlap with the button */
+.message-input {
+  padding-right: 60px !important;
+}
+
+/* Version info indicator (for debugging) */
+.version-indicator {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 1000;
+}
+
 /* Adjust message content to handle images better */
 .message-content {
   max-width: 80%;
@@ -295,6 +383,7 @@ body {
   border-radius: 12px;
   line-height: 1.5;
 }
+
 
 .bot-message .message-content img {
   max-width: 100%;

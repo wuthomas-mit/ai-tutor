@@ -145,13 +145,20 @@ def chat():
     data = request.json
     user_message = data.get('message', '')
     images = data.get('images', [])
+    source_type = data.get('source_type', 'Default')
     chat_session_id = session.get('chat_session_id')
+    user_id = session.get('user_id')
+
+    # Check if user should see Version A or B (Version A doesn't send source_type)
+    ab_version = 'B' if int(user_id) % 2 != 0 else 'A'
 
     # Create a JSON representation of the context that includes the images
     context_data = {
         'text': user_message,
         'has_images': len(images) > 0,
-        'image_count': len(images)
+        'image_count': len(images),
+        'source_type': source_type if ab_version == 'B' else 'Default',
+        'ab_version': ab_version
     }
 
     # Log the question in the database
@@ -166,11 +173,21 @@ def chat():
 
     # Get the bot response using ask() or followup() based on conversation state
     is_first_question = session.get('is_first_question', True)
-    if is_first_question:
-        bot_response, sources = ask(user_message, images)
-        session['is_first_question'] = False
+
+    if ab_version == 'B':
+        # For Version B, use the functions that accept source_type
+        if is_first_question:
+            bot_response, sources = ask(user_message, source_type, images)
+            session['is_first_question'] = False
+        else:
+            bot_response, sources = followup(user_message, source_type, images)
     else:
-        bot_response, sources = followup(user_message, images)
+        # For Version A, use the original functions without source_type
+        if is_first_question:
+            bot_response, sources = ask(user_message, "Default", images)
+            session['is_first_question'] = False
+        else:
+            bot_response, sources = followup(user_message, "Default", images)
 
     # Log the answer in the database with default feedback value as None (meaning no feedback yet)
     answer_obj = Answer(
@@ -215,6 +232,15 @@ def feedback():
         return jsonify({'message': 'Feedback updated.'}), 200
     else:
         return jsonify({'message': 'Answer record not found.'}), 404
+    
+@app.route('/get_ab_version', methods=['GET'])
+@login_required
+def get_ab_version():
+    """Endpoint to determine if user should see version A or B based on user ID"""
+    user_id = session.get('user_id')
+    # Even user IDs get version A, odd get version B
+    version = 'A' if int(user_id) % 2 == 0 else 'B'
+    return jsonify({'version': version})
 
 @app.before_request
 def require_login():

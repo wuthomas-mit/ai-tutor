@@ -613,7 +613,7 @@ def rewrite(query, use_context):
   return response.content[0].text
 
 
-def ask(query, images=None):
+def ask(query, source_type, images=None):
     """Main function to get response for an initial query"""
 
         # Process images if present
@@ -650,13 +650,29 @@ def ask(query, images=None):
     if rewritten_query == "False":
         return "I don't feel like I can answer this question. Maybe you should ask the TAs?", "No sources used."
 
-    # STEP 3: Select appropriate source type
-    print("Selecting source type...")
-    source_selection = select_source_type(full_query)
-    filter_conditions = source_selection["filter_conditions"]
+    # STEP 3: Determine source type and filters
+    selected_source_type = source_type  # Store the source type for logging
+    
+    # If the source_type is specified and not 'Default', use that instead of auto-selecting
+    if source_type and source_type != 'Default':
+        print(f"Using specified source type: {source_type}")
+        filter_conditions = source_type_to_filters(source_type)
+    else:
+        # Auto-select source type
+        print("Auto-selecting source type...")
+        source_type = select_source_type(full_query)
+        filter_conditions = source_type["filter_conditions"]
+        # Update the selected source type for logging
+        selected_source_type = source_type["source_type"]
+        print(f"Auto-selected source type: {selected_source_type} with filters: {filter_conditions}")
+    
     # Add visibility filter
     filter_conditions["visibility"] = True
-    print(f"Selected source type: {source_selection['source_type']} with filters: {filter_conditions}")
+    print(f"Selected source type: {selected_source_type} with filters: {filter_conditions}")
+    
+    # Add visibility filter
+    filter_conditions["visibility"] = True
+    print(f"Selected filters: {filter_conditions}")
 
     
     global nb_followup, context
@@ -665,7 +681,7 @@ def ask(query, images=None):
 
 
 
-    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, False, filter_conditions={"visibility": True})
+    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, False, filter_conditions)
     Sources = ""
 
     if len(filtered_results) == top_k:
@@ -776,7 +792,7 @@ def detect_followup_relation(followup_question, previous_context):
 
 
 
-def followup(followup_question, images = None):
+def followup(followup_question, source_type, images = None):
     """Handle follow-up questions with context awareness"""
 
     global nb_followup, context
@@ -818,10 +834,20 @@ def followup(followup_question, images = None):
     if rewritten_query == "False":
         return "I don't feel like I can answer this question. Maybe you should ask the TAs?", "No sources used."
 
-    # STEP 3: Select appropriate source type
-    print("Selecting source type...")
-    source_selection = select_source_type(full_query)
-    filter_conditions = source_selection["filter_conditions"]
+    # STEP 3: Determine source type and filters
+    # If the source_type is specified and not 'Default', use that instead of auto-selecting
+    if source_type and source_type != 'Default':
+        print(f"Using specified source type: {source_type}")
+        filter_conditions = source_type_to_filters(source_type)
+    else:
+        # Auto-select source type
+        print("Auto-selecting source type...")
+        source_selection = select_source_type(full_query)
+        filter_conditions = source_selection["filter_conditions"]
+        # Store the selection for logging
+        selected_source_type = source_selection["source_type"]
+        print(f"Auto-selected source type: {selected_source_type} with filters: {filter_conditions}")
+    
     # Add visibility filter
     filter_conditions["visibility"] = True
     print(f"Selected source type: {source_selection['source_type']} with filters: {filter_conditions}")
@@ -832,7 +858,7 @@ def followup(followup_question, images = None):
     if nb_followup >= 3:
         return "This question seems more complicated than expected, you may want to discuss it further with your TAs" , Sources
     
-    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, use_context ,filter_conditions={"visibility": True})
+    filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, use_context ,filter_conditions)
     
     if len(filtered_results) == top_k:
         Sources = "\n\nSources ordered by relevance:\n"

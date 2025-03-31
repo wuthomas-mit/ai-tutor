@@ -56,6 +56,106 @@ document.addEventListener('paste', function(e) {
     }
 });
 
+// Remove the second DOMContentLoaded event listener and merge it with the first one
+document.addEventListener('DOMContentLoaded', async function() {
+    messageInput.focus();
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Check if the user should see version A or B
+    try {
+        const response = await fetch('/get_ab_version');
+        const data = await response.json();
+        const abVersion = data.version;
+        
+        // Add version indicator for debugging (optional)
+        const versionIndicator = document.createElement('div');
+        versionIndicator.className = 'version-indicator';
+        versionIndicator.textContent = `Version ${abVersion}`;
+        document.body.appendChild(versionIndicator);
+        
+        // If Version B, add the source type selector
+        if (abVersion === 'B') {
+            addSourceTypeSelector();
+        }
+    } catch (error) {
+        console.error('Error determining AB version:', error);
+    }
+});
+
+// Global variable to store the currently selected source type
+let currentSourceType = 'Default';
+
+// Function to add the source type selector for Version B
+function addSourceTypeSelector() {
+    const inputContainer = document.querySelector('.input-container');
+    
+    // Create the selector container
+    const selectorContainer = document.createElement('div');
+    selectorContainer.className = 'source-type-selector';
+    
+    // Create the trigger button
+    const selectorButton = document.createElement('button');
+    selectorButton.className = 'source-type-button';
+    selectorButton.innerHTML = '...';  // Simple ellipsis
+    selectorButton.setAttribute('title', 'Select source type');
+    
+    // Create the dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'source-type-dropdown';
+    
+    // Add source type options
+    const sourceTypes = [
+        { id: 'Content', label: 'Content' },
+        { id: 'Exercises', label: 'Exercises' },
+        { id: 'Administrative', label: 'Administrative' },
+        { id: 'Default', label: 'Default (Auto)' }
+    ];
+    
+    sourceTypes.forEach(type => {
+        const option = document.createElement('div');
+        option.className = 'source-type-option';
+        option.setAttribute('data-type', type.id);
+        option.textContent = type.label;
+        
+        if (type.id === currentSourceType) {
+            option.classList.add('selected');
+        }
+        
+        option.addEventListener('click', function() {
+            // Update the selected source type
+            currentSourceType = type.id;
+            
+            // Update the UI
+            dropdown.querySelectorAll('.source-type-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            option.classList.add('selected');
+            
+            // Hide the dropdown
+            dropdown.classList.remove('show');
+        });
+        
+        dropdown.appendChild(option);
+    });
+    
+    // Toggle dropdown when button is clicked
+    selectorButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        dropdown.classList.toggle('show');
+        e.stopPropagation();
+    });
+    
+    // Hide dropdown when clicking elsewhere
+    document.addEventListener('click', function() {
+        dropdown.classList.remove('show');
+    });
+    
+    // Add the elements to the DOM
+    selectorContainer.appendChild(selectorButton);
+    selectorContainer.appendChild(dropdown);
+    inputContainer.appendChild(selectorContainer);
+}
+
 // Create image preview container
 function createImagePreviewContainer() {
     let container = document.getElementById('image-preview-container');
@@ -152,13 +252,15 @@ async function saveFeedback(type) {
     }
 }
 
+// Modified sendMessage function to include source type
 async function sendMessage(message) {
     // Disable input while processing
     messageInput.disabled = true;
     
-    // Create payload with both text and images
+    // Create payload with text, images, and source type
     const payload = {
-        message: message
+        message: message,
+        source_type: currentSourceType  // Include the selected source type
     };
     
     if (pastedImages.length > 0) {
@@ -282,12 +384,6 @@ function handleScroll() {
 
 // Add scroll event listener
 messagesContainer.addEventListener('scroll', handleScroll);
-
-// Initialize by focusing input and scrolling to bottom
-document.addEventListener('DOMContentLoaded', function() {
-    messageInput.focus();
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-});
 
 // Add logout functionality
 document.addEventListener('keydown', function(e) {
