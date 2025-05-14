@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import json
-from helpers import ask, followup, init_clients, load_embeddings, login_required
+from helpers import ask, followup, init_clients, load_embeddings, login_required, route_ask
 
 # Global variables
 vo = None
@@ -177,14 +177,14 @@ def chat():
     if ab_version == 'B':
         # For Version B, use the functions that accept source_type
         if is_first_question:
-            bot_response, sources = ask(user_message, source_type, images)
+            bot_response, sources = route_ask(user_message, source_type, images)
             session['is_first_question'] = False
         else:
             bot_response, sources = followup(user_message, source_type, images)
     else:
         # For Version A, use the original functions without source_type
         if is_first_question:
-            bot_response, sources = ask(user_message, "Default", images)
+            bot_response, sources = route_ask(user_message, "Default", images)
             session['is_first_question'] = False
         else:
             bot_response, sources = followup(user_message, "Default", images)

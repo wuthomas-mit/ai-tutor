@@ -11,6 +11,9 @@ from functools import wraps
 from flask import session, redirect
 from datetime import datetime
 
+# Import Google Generative AI library
+# import google.generativeai as genai # <--- ADDED IMPORT
+
 # Require login to access chatbot
 def login_required(f):
     """
@@ -37,19 +40,53 @@ VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
 if not VOYAGE_API_KEY:
     raise ValueError("VOYAGE_API_KEY is not set in the environment!")
 
+# --- ADDED Google API Key loading ---
+#GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+#if not GOOGLE_API_KEY:
+#    raise ValueError("GOOGLE_API_KEY is not set in the environment!")
+# --- END ADDED ---
+
 # Initialize global clients as None
 vo = None
 client = None
-
+#gemini_model = None # <--- ADDED global variable for Gemini model
 
 def init_clients():
     """Initialize the global clients"""
+    # Make sure to include the new global variable
     global vo, client, ANTHROPIC_API_KEY, VOYAGE_API_KEY
+
+    # Initialize clients using the global variables holding the keys
+    print("Initializing Voyage AI Client...")
+    vo = voyageai.Client(api_key=VOYAGE_API_KEY)
+    print("Initializing Anthropic Client...")
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    # --- ADDED Google Generative AI Configuration ---
+    #print("Configuring Google Generative AI...")
+    #genai.configure(api_key=GOOGLE_API_KEY)
+    #print("Initializing Gemini Model...")
     
-    # Initialize clients using environment variables
-    vo = voyageai.Client(api_key=os.getenv(VOYAGE_API_KEY))
-    client = anthropic.Anthropic(api_key=os.getenv(ANTHROPIC_API_KEY))
-    
+    # Initialize Gemini 2.5
+    #try:
+    #    gemini_model = genai.GenerativeModel('gemini-2.5-pro-exp-03-25')
+    #    
+    #    # Test the model with a simple prompt to verify it works
+    #    test_response = gemini_model.generate_content(
+    #        "Respond with 'OK' if you can read this.",
+    #        generation_config=genai.types.GenerationConfig(
+    #            temperature=0.1,
+    #            top_k=40,
+    #            top_p=0.95,
+    #            max_output_tokens=1024
+    #        )
+    #    )
+    #    print(f"Model test response: {test_response.text}")
+    #    print("Successfully initialized Gemini 2.5 model")
+    #except Exception as e:
+    #    print(f"Fatal: Could not initialize Gemini 2.5 model. Error: {str(e)}")
+    #    raise e
+
     print("Clients initialized successfully")
 
 
@@ -615,8 +652,8 @@ def rewrite(query, use_context):
 
 def ask(query, source_type, images=None):
     """Main function to get response for an initial query"""
-
-        # Process images if present
+    
+    # Process images if present
     image_descriptions = []
     image_description = ""
     if images and len(images) > 0:
@@ -630,7 +667,6 @@ def ask(query, source_type, images=None):
         full_query += " " + " ".join(image_descriptions)
         image_description = ", accompanied of this image" + " ".join(image_descriptions) + ","
 
-    
     # STEP 1: Pre-query processing - classify the query
     print("Classifying query...")
     classification = classify_query(full_query)
@@ -674,12 +710,46 @@ def ask(query, source_type, images=None):
     filter_conditions["visibility"] = True
     print(f"Selected filters: {filter_conditions}")
 
-    
     global nb_followup, context
     nb_followup = 0
-    top_k=4
+    
+    # Determine if we should use SmartAsk
+    prompt = f"""
+    Analyze if this query requires deep, lecture-specific reasoning:
+    
+    QUERY: "{full_query}"
+    
+    Return a JSON with only these fields:
+    - use_smart_ask: boolean (true if the query is a difficult exercise or homeworkrequires)
+    - confidence: number between 0-1
+    - reasoning: brief explanation of your decision
+    
+    RETURN ONLY THE JSON WITHOUT ANY ADDITIONAL TEXT.
+    """
+    
+    try:
+        response = client.messages.create(
+            model="claude-3-5-haiku-latest",
+            temperature=0,
+            max_tokens=150,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        content = response.content[0].text.strip()
+        json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group(1))
+        else:
+            result = json.loads(content)
+            
+        use_smart_ask = result["use_smart_ask"]
+        print(f"SmartAsk decision: {use_smart_ask} (confidence: {result['confidence']})")
+    except Exception as e:
+        print(f"Error parsing smart ask decision: {str(e)}")
+        use_smart_ask = False
 
-
+    # Adjust top_k based on whether we're using SmartAsk
+    top_k = 8 if use_smart_ask else 4
 
     filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, False, filter_conditions)
     Sources = ""
@@ -687,24 +757,43 @@ def ask(query, source_type, images=None):
     if len(filtered_results) == top_k:
         Sources = "\n\nSources ordered by relevance:\n"
         for doc, score, global_index in filtered_results:
-          doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
-          Sources += f"- {doc_name} (Cosine similarity Score: {100 * score:.2f}/100)\n"
+            doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
+            Sources += f"- {doc_name} (Cosine similarity Score: {100 * score:.2f}/100)\n"
     else:
-          prereq_results, prereq_doc_names, prereq_reranked_results, prereq_docs = retriever(full_query + " / " + rewritten_query, 0.75, top_k, False, filter_conditions={"visibility": False})
-          if not prereq_results:
-              return f"I apologize I am not sure. You may want to reformulate the question or ask a TA.", Sources
-          Sources = "\n\nSources ordered by relevance:\n"
-          for doc, score, global_index in filtered_results:
-              doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
-              Sources += f"- {doc_name} (Cosine similarity Score: {100 * score:.2f}/100)\n"
-          doc, score, index = prereq_results[0]
-          prereq_doc_name = prereq_doc_names[0] #document_names[index]
-          Sources += f"- Knowledge from the {prereq_doc_name} prerequisite\n"
-          retrieved_docs = retrieved_docs + prereq_docs
-              
+        prereq_results, prereq_doc_names, prereq_reranked_results, prereq_docs = retriever(full_query + " / " + rewritten_query, 0.75, top_k, False, filter_conditions={"visibility": False})
+        if not prereq_results:
+            return f"I apologize I am not sure. You may want to reformulate the question or ask a TA.", Sources
+        Sources = "\n\nSources ordered by relevance:\n"
+        for doc, score, global_index in filtered_results:
+            doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
+            Sources += f"- {doc_name} (Cosine similarity Score: {100 * score:.2f}/100)\n"
+        doc, score, index = prereq_results[0]
+        prereq_doc_name = prereq_doc_names[0]
+        Sources += f"- Knowledge from the {prereq_doc_name} prerequisite\n"
+        retrieved_docs = retrieved_docs + prereq_docs
 
-    prompt = f"{preprompt}\nYou must generate a response of {query}{image_description} only using {retrieved_docs}!{postprompt}"
-    
+    # Use different prompts based on whether we're using SmartAsk
+    if use_smart_ask:
+        prompt = f"""Imagine you are in a parallel universe where all of the math you know doesn't count.
+
+Answer the question using only, AND I MEAN ONLY what you have seen in the lectures. Trace back everything to the lecture, only deduct from the lecture. Think only with the lecture in mind, the rest doesn't exist in this parallel universe.
+
+Think very deeply, the problems are tricky, the answer may not be what you think it is! Rely on the lecture instead of your flawed reasoning.
+
+In this universe, answer this: {query}{image_description}
+
+Use only these documents as your source of truth:
+{retrieved_docs}
+
+Remember:
+1. Only use information from the provided documents
+2. Don't rely on your general knowledge
+3. If something isn't in the documents, don't make assumptions
+4. Be precise and thorough in your reasoning
+5. If you're unsure, say so and explain why"""
+    else:
+        prompt = f"{preprompt}\nYou must generate a response of {query}{image_description} only using {retrieved_docs}!{postprompt}"
+
     response_obj = client.messages.create(
         model="claude-3-7-sonnet-latest",
         max_tokens=1024,
@@ -727,7 +816,7 @@ def ask(query, source_type, images=None):
     # Post-process the response
     final_response = postprocess(final_response)
 
-    # Update context for future questions (from original code)
+    # Update context for future questions
     context = f"Student: {query + image_description}\nBeaverGPT: {final_response}"
 
     return final_response + Sources, Sources
@@ -889,3 +978,219 @@ def followup(followup_question, source_type, images = None):
     
     context += f"\nStudent: {followup_question + image_description}\nBeaverGPT: {response.content[0].text}"
     return postprocess(response.content[0].text) + Sources, Sources
+
+#def smart_ask(query, source_type, images=None):
+#    """Enhanced version of ask that uses a richer context and follows a specific prompt"""
+#    # Process images if present
+#    image_descriptions = []
+#    image_description = ""
+#    if images and len(images) > 0:
+#        for img in images:
+#            description = process_image(img['data'])
+#            image_descriptions.append(description)
+#    
+#    # Combine the original query with image descriptions
+#    full_query = query
+#    if image_descriptions:
+#        full_query += " " + " ".join(image_descriptions)
+#        image_description = ", accompanied of this image" + " ".join(image_descriptions) + ","
+#
+#    # STEP 1: Pre-query processing - classify the query
+#    print("Classifying query...")
+#    classification = classify_query(full_query)
+#    print(f"Query classified as: {classification['type']} with confidence {classification['confidence']}")
+#
+#    # Handle potential prompt attacks
+#    if classification["type"] == "prompt_attack":
+#        return "I'm unable to assist with this query. Please consult with your instructor.", "No sources used."
+#    if classification["type"] == "off_topic":
+#        return "I'm unable to assist with this query. Please consult with your instructor.", "No sources used."
+#
+#    global nb_followup, context
+#    nb_followup = 0
+#    top_k = 100  # Use top 20 sources for smart ask
+#
+#    # Get query embedding
+#    query_embedding = vo.embed([full_query], model="voyage-3", input_type="query").embeddings[0]
+#    
+#    # Get top k documents without filtering
+#    retrieved_embds, retrieved_embd_indices = k_nearest_neighbors(
+#        query_embedding, 
+#        embeddings, 
+#        filtered_indices=None,
+#        k=top_k
+#    )
+#    
+#    retrieved_docs = [documents[index] for index in retrieved_embd_indices]
+#    retrieved_doc_names = [document_names[index] for index in retrieved_embd_indices]
+#    
+#    # Rerank retrieved documents
+#    documents_reranked = vo.rerank(
+#        full_query, 
+#        retrieved_docs, 
+#        model="rerank-lite-1", 
+#        top_k=top_k
+#    )
+#    
+#    # Sort results by relevance score
+#    reranked_results = sorted(
+#        documents_reranked.results,
+#        key=lambda x: x.relevance_score,
+#        reverse=True
+#    )
+#    
+#    # Get final documents and scores
+#    filtered_results = [
+#        (r.document, r.relevance_score, r.index)
+#        for r in reranked_results
+#    ]
+#    
+#    Sources = "\n\nSources ordered by relevance:\n"
+#    for doc, score, global_index in filtered_results:
+#        doc_name = retrieved_doc_names[global_index] if global_index < len(retrieved_doc_names) else "Unknown Document"
+#        Sources += f"- {doc_name} (Cosine similarity Score: {100 * score:.2f}/100)\n"
+#
+#    # Special prompt for SmartAsk
+#    smart_prompt = f"""Imagine you are in a parallel universe where all of the math you know doesn't count.
+#
+#Answer the question using only, AND I MEAN ONLY what you have seen in the lectures. Trace back everything to the lecture, only deduct from the lecture. Think only with the lecture in mind, the rest doesn't exist in this parallel universe.
+#
+#Think very deeply, the problems are tricky, the answer may not be what you think it is! Rely on the lecture instead of your flawed reasoning.
+#
+#In this universe, answer this: {query}{image_description}
+#
+#Use only these documents as your source of truth:
+#{retrieved_docs}
+#
+#Remember:
+#1. Only use information from the provided documents
+#2. Don't rely on your general knowledge
+#3. If something isn't in the documents, don't make assumptions
+#4. Be precise and thorough in your reasoning
+#5. If you're unsure, say so and explain why"""
+#
+#    # Configure generation parameters for Gemini
+#    generation_config = genai.types.GenerationConfig(
+#        # Temperature: 0.0 for focused, deterministic responses
+#        temperature=0.0,
+#        # Tokens: Gemini 2.5 supports larger contexts
+#        #max_output_tokens=8192,
+#        # Sampling parameters
+#        top_p=0.95,
+#        top_k=40)
+#        # Generate the response with full configuration
+#    response_obj = gemini_model.generate_content(
+#            smart_prompt,
+#            generation_config=generation_config
+#        )
+#
+#    # If not blocked, get the text
+#    raw_response = response_obj.text
+#    print(f"Raw response: {response_obj}")
+#    #raw_response = response_obj.content[0].text
+#
+#    # If response is still too long, split it into chunks and process each
+#    if len(raw_response) > 4000:  # If response is very long
+#        chunks = []
+#        current_chunk = ""
+#        sentences = raw_response.split('. ')
+#        
+#        for sentence in sentences:
+#            if len(current_chunk) + len(sentence) < 4000:
+#                current_chunk += sentence + '. '
+#            else:
+#                chunks.append(current_chunk)
+#                current_chunk = sentence + '. '
+#        
+#        if current_chunk:
+#            chunks.append(current_chunk)
+#        
+#        # Process each chunk
+#        processed_chunks = []
+#        for chunk in chunks:
+#            # Verify each chunk
+#            verification = verify_response(query, chunk, retrieved_docs)
+#            if not verification["verified"] and verification["confidence"] > 0.7:
+#                continue
+#            processed_chunks.append(postprocess(chunk))
+#        
+#        final_response = ' '.join(processed_chunks)
+#    else:
+#        # STEP 6: Verify response quality
+#        print("Verifying response...")
+#        verification = verify_response(query, raw_response, retrieved_docs)
+#        print(f"Verification result: {verification}")
+#
+#    # If verification fails, add a warning
+#    final_response = raw_response
+#    if not verification["verified"] and verification["confidence"] > 0.7:
+#        return f"I apologize I am not sure. You may want to reformulate the question or ask a TA.", "No sources used."
+#
+#    # Post-process the response
+#    final_response = postprocess(final_response)
+#
+#    # Update context for future questions
+#    context = f"Student: {query + image_description}\nBeaverGPT: {final_response}"
+#
+#    return final_response + Sources, Sources
+#
+#def should_use_smart_ask(query):
+#    """
+#    Determines if a query should be handled by SmartAsk
+#    
+#    Args:
+#        query: The student query
+#        
+#    Returns:
+#        Boolean indicating whether to use SmartAsk
+#    """
+#    prompt = f"""
+#    Analyze if this query requires deep, lecture-specific reasoning:
+#    
+#    QUERY: "{query}"
+#    
+#    Return a JSON with only these fields:
+#    - use_smart_ask: boolean (true if the query requires deep, lecture-specific reasoning)
+#    - confidence: number between 0-1
+#    - reasoning: brief explanation of your decision
+#    
+#    RETURN ONLY THE JSON WITHOUT ANY ADDITIONAL TEXT.
+#    """
+#    
+#    # Call Claude and parse response
+#    response = client.messages.create(
+#        model="claude-3-5-haiku-latest",  # Using haiku for speed
+#        temperature=0,
+#        max_tokens=150,
+#        messages=[{"role": "user", "content": prompt}]
+#    )
+#    
+#    # Parse response to extract JSON
+#    try:
+#        content = response.content[0].text.strip()
+#        json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+#        if json_match:
+#            result = json.loads(json_match.group(1))
+#        else:
+#            result = json.loads(content)
+#            
+#        return result["use_smart_ask"]
+#    except Exception as e:
+#        print(f"Error parsing smart ask decision: {str(e)}")
+#        # Default to regular ask if we can't determine
+#        return False
+
+def route_ask(query, source_type, images=None):
+    """
+    Routes the query to regular ask
+    
+    Args:
+        query: The student query
+        source_type: The type of source to use
+        images: Optional list of images
+        
+    Returns:
+        Tuple of (response, sources)
+    """
+    print("Using regular ask for standard query")
+    return ask(query, source_type, images)
