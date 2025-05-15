@@ -53,41 +53,17 @@ client = None
 
 def init_clients():
     """Initialize the global clients"""
-    # Make sure to include the new global variable
     global vo, client, ANTHROPIC_API_KEY, VOYAGE_API_KEY
-
-    # Initialize clients using the global variables holding the keys
-    print("Initializing Voyage AI Client...")
-    vo = voyageai.Client(api_key=VOYAGE_API_KEY)
-    print("Initializing Anthropic Client...")
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-    # --- ADDED Google Generative AI Configuration ---
-    #print("Configuring Google Generative AI...")
-    #genai.configure(api_key=GOOGLE_API_KEY)
-    #print("Initializing Gemini Model...")
-    
-    # Initialize Gemini 2.5
-    #try:
-    #    gemini_model = genai.GenerativeModel('gemini-2.5-pro-exp-03-25')
-    #    
-    #    # Test the model with a simple prompt to verify it works
-    #    test_response = gemini_model.generate_content(
-    #        "Respond with 'OK' if you can read this.",
-    #        generation_config=genai.types.GenerationConfig(
-    #            temperature=0.1,
-    #            top_k=40,
-    #            top_p=0.95,
-    #            max_output_tokens=1024
-    #        )
-    #    )
-    #    print(f"Model test response: {test_response.text}")
-    #    print("Successfully initialized Gemini 2.5 model")
-    #except Exception as e:
-    #    print(f"Fatal: Could not initialize Gemini 2.5 model. Error: {str(e)}")
-    #    raise e
-
-    print("Clients initialized successfully")
+    try:
+        vo = voyageai.Client(api_key=VOYAGE_API_KEY)
+    except Exception as e:
+        print(f"[init_clients] Error initializing Voyage AI Client: {e}")
+        vo = None
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    except Exception as e:
+        print(f"[init_clients] Error initializing Anthropic Client: {e}")
+        client = None
 
 
 
@@ -101,37 +77,47 @@ context = ""
 
 
 # Load embeddings and documents metadata
-def load_embeddings(file_path ="./embeddings.json",long = True):
-    with open(file_path, "r", encoding="utf-8") as f:
-        data_loaded = json.load(f)
-    
-    document_names = data_loaded["document_names"]
-    documents = data_loaded["documents"]
-    embeddings = data_loaded["embeddings"]
-    
-    # Load specific metadata if available
-    visibility = data_loaded.get("visibility", [None] * len(documents))
-    category = data_loaded.get("category", [None] * len(documents))
-    date = data_loaded.get("date", [None] * len(documents))
-    doc_type = data_loaded.get("type", [None] * len(documents))
-    
-    # Create a structured metadata list
-    metadata = []
-    for i in range(len(documents)):
-        meta = {
-            "visibility": visibility[i] if i < len(visibility) else None,
-            "category": category[i] if i < len(category) else None,
-            "date": date[i] if i < len(date) else None,
-            "type": doc_type[i] if i < len(doc_type) else None
-        }
-        metadata.append(meta)
-    
-    print(f"Embeddings loaded from {file_path}")
-    if long:
+def load_embeddings():
+    """Load embeddings from JSON file"""
+    try:
+        with open('./embeddings.json', 'r') as f:
+            data = json.load(f)
+            
+        # Extract the arrays from the new structure
+        document_names = data.get('document_names', [])
+        documents = data.get('documents', [])
+        embeddings = data.get('embeddings', [])
+        metadata_list = data.get('metadata', [])  # Get the metadata list
+        
+        # Create metadata list with the same length as documents
+        metadata = []
+        for i in range(len(documents)):
+            if i < len(metadata_list):
+                # Use the metadata from the metadata list if available
+                meta = metadata_list[i]
+            else:
+                # Create default metadata if not available
+                meta = {
+                    'visibility': None,
+                    'category': None,
+                    'date': None,
+                    'type': None
+                }
+            metadata.append(meta)
+        
+        # Verify all arrays have the same length
+        if not (len(document_names) == len(documents) == len(embeddings)):
+            raise ValueError("Arrays in embeddings.json have different lengths")
+            
         return document_names, documents, embeddings, metadata
-    
+    except Exception as e:
+        print(f"Error loading embeddings: {str(e)}")
+        return [], [], [], []
+
 document_names, documents, embeddings , metadata = load_embeddings()
 
+# Ensure clients are initialized on import
+init_clients()
 
 def classify_query(query):
     """
@@ -254,7 +240,7 @@ def source_type_to_filters(source_type):
     """Converts source type to appropriate filter conditions"""
 
     if source_type == "Content":
-        return {"category": "Lectures"}
+        return {"category": "Lecture"}
     elif source_type == "Exercises":
         return {"category": ["Lecture", "Recitation"], "type": "pdf"}
     elif source_type == "Administrative":
@@ -440,11 +426,14 @@ def retriever(query, threshold, top_k, use_context, filter_conditions=None):
     Returns:
         Tuple of (filtered_results, retrieved_doc_names, reranked_results, retrieved_docs)
     """
-    # Get query embedding
     if use_context and context:
-            query = context + query
+        query = context + query
 
-    query_embedding = vo.embed([query], model="voyage-3", input_type="query").embeddings[0]
+    try:
+        query_embedding = vo.embed([query], model="voyage-3", input_type="query").embeddings[0]
+    except Exception as e:
+        print(f"Error getting query embedding: {str(e)}")
+        return [], [], [], []
     
     # Apply metadata filtering if conditions are provided
     filtered_indices = None
@@ -466,29 +455,33 @@ def retriever(query, threshold, top_k, use_context, filter_conditions=None):
     retrieved_docs = [documents[index] for index in retrieved_embd_indices]
     retrieved_doc_names = [document_names[index] for index in retrieved_embd_indices]
     
-    # Rerank retrieved documents
-    documents_reranked = vo.rerank(
-        query, 
-        retrieved_docs, 
-        model="rerank-lite-1", 
-        top_k=top_k
-    )
-    
-    # Extract and sort results by relevance score
-    reranked_results = sorted(
-        documents_reranked.results,
-        key=lambda x: x.relevance_score,
-        reverse=True
-    )
-    
-    # Filter results based on relevance score threshold
-    filtered_results = [
-        (r.document, r.relevance_score, r.index)
-        for r in reranked_results
-        if r.relevance_score >= threshold
-    ]
-    
-    return filtered_results, retrieved_doc_names, reranked_results, retrieved_docs
+    try:
+        # Rerank retrieved documents
+        documents_reranked = vo.rerank(
+            query, 
+            retrieved_docs, 
+            model="rerank-lite-1", 
+            top_k=top_k
+        )
+        
+        # Extract and sort results by relevance score
+        reranked_results = sorted(
+            documents_reranked.results,
+            key=lambda x: x.relevance_score,
+            reverse=True
+        )
+        
+        # Filter results based on relevance score threshold
+        filtered_results = [
+            (r.document, r.relevance_score, r.index)
+            for r in reranked_results
+            if r.relevance_score >= threshold
+        ]
+        
+        return filtered_results, retrieved_doc_names, reranked_results, retrieved_docs
+    except Exception as e:
+        print(f"Error during reranking: {str(e)}")
+        return [], [], [], []
 
 def postprocess(text):
     """Post-process response text"""
@@ -668,9 +661,7 @@ def ask(query, source_type, images=None):
         image_description = ", accompanied of this image" + " ".join(image_descriptions) + ","
 
     # STEP 1: Pre-query processing - classify the query
-    print("Classifying query...")
     classification = classify_query(full_query)
-    print(f"Query classified as: {classification['type']} with confidence {classification['confidence']}")
 
     # Handle potential prompt attacks
     if classification["type"] == "prompt_attack":
@@ -679,9 +670,7 @@ def ask(query, source_type, images=None):
         return "I'm unable to assist with this query. Please consult with your instructor.", "No sources used."
 
     # STEP 2: Rewrite query for better RAG performance
-    print("Rewriting query...")
     rewritten_query = rewrite(full_query, False)
-    print(f"Rewritten query: {rewritten_query}")
 
     if rewritten_query == "False":
         return "I don't feel like I can answer this question. Maybe you should ask the TAs?", "No sources used."
@@ -691,65 +680,23 @@ def ask(query, source_type, images=None):
     
     # If the source_type is specified and not 'Default', use that instead of auto-selecting
     if source_type and source_type != 'Default':
-        print(f"Using specified source type: {source_type}")
         filter_conditions = source_type_to_filters(source_type)
     else:
         # Auto-select source type
-        print("Auto-selecting source type...")
         source_type = select_source_type(full_query)
         filter_conditions = source_type["filter_conditions"]
         # Update the selected source type for logging
         selected_source_type = source_type["source_type"]
-        print(f"Auto-selected source type: {selected_source_type} with filters: {filter_conditions}")
     
     # Add visibility filter
     filter_conditions["visibility"] = True
-    print(f"Selected source type: {selected_source_type} with filters: {filter_conditions}")
-    
-    # Add visibility filter
-    filter_conditions["visibility"] = True
-    print(f"Selected filters: {filter_conditions}")
 
     global nb_followup, context
     nb_followup = 0
     
-    # Determine if we should use SmartAsk
-    prompt = f"""
-    Analyze if this query requires deep, lecture-specific reasoning:
-    
-    QUERY: "{full_query}"
-    
-    Return a JSON with only these fields:
-    - use_smart_ask: boolean (true if the query is a difficult exercise or homeworkrequires)
-    - confidence: number between 0-1
-    - reasoning: brief explanation of your decision
-    
-    RETURN ONLY THE JSON WITHOUT ANY ADDITIONAL TEXT.
-    """
-    
-    try:
-        response = client.messages.create(
-            model="claude-3-5-haiku-latest",
-            temperature=0,
-            max_tokens=150,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
-        content = response.content[0].text.strip()
-        json_match = re.search(r'(\{.*\})', content, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group(1))
-        else:
-            result = json.loads(content)
-            
-        use_smart_ask = result["use_smart_ask"]
-        print(f"SmartAsk decision: {use_smart_ask} (confidence: {result['confidence']})")
-    except Exception as e:
-        print(f"Error parsing smart ask decision: {str(e)}")
-        use_smart_ask = False
-
-    # Adjust top_k based on whether we're using SmartAsk
-    top_k = 8 if use_smart_ask else 4
+    # Never use SmartAsk
+    use_smart_ask = False
+    top_k = 4  # Always use standard top_k value
 
     filtered_results, retrieved_doc_names, reranked_results, retrieved_docs = retriever(full_query + " / " + rewritten_query, 0.5, top_k, False, filter_conditions)
     Sources = ""
@@ -772,27 +719,8 @@ def ask(query, source_type, images=None):
         Sources += f"- Knowledge from the {prereq_doc_name} prerequisite\n"
         retrieved_docs = retrieved_docs + prereq_docs
 
-    # Use different prompts based on whether we're using SmartAsk
-    if use_smart_ask:
-        prompt = f"""Imagine you are in a parallel universe where all of the math you know doesn't count.
-
-Answer the question using only, AND I MEAN ONLY what you have seen in the lectures. Trace back everything to the lecture, only deduct from the lecture. Think only with the lecture in mind, the rest doesn't exist in this parallel universe.
-
-Think very deeply, the problems are tricky, the answer may not be what you think it is! Rely on the lecture instead of your flawed reasoning.
-
-In this universe, answer this: {query}{image_description}
-
-Use only these documents as your source of truth:
-{retrieved_docs}
-
-Remember:
-1. Only use information from the provided documents
-2. Don't rely on your general knowledge
-3. If something isn't in the documents, don't make assumptions
-4. Be precise and thorough in your reasoning
-5. If you're unsure, say so and explain why"""
-    else:
-        prompt = f"{preprompt}\nYou must generate a response of {query}{image_description} only using {retrieved_docs}!{postprompt}"
+    # Always use standard prompt
+    prompt = f"{preprompt}\nYou must generate a response of {query}{image_description} only using {retrieved_docs}!{postprompt}"
 
     response_obj = client.messages.create(
         model="claude-3-7-sonnet-latest",
@@ -804,9 +732,7 @@ Remember:
     raw_response = response_obj.content[0].text
 
     # STEP 6: Verify response quality
-    print("Verifying response...")
     verification = verify_response(query, raw_response, retrieved_docs)
-    print(f"Verification result: {verification}")
 
     # If verification fails, add a warning
     final_response = raw_response
@@ -885,7 +811,7 @@ def followup(followup_question, source_type, images = None):
     """Handle follow-up questions with context awareness"""
 
     global nb_followup, context
-        # Process images if present
+    # Process images if present
     image_descriptions = []
     image_description = ""
     if images and len(images) > 0:
@@ -899,10 +825,8 @@ def followup(followup_question, source_type, images = None):
         full_query += " " + " ".join(image_descriptions)
         image_description = ", accompanied of this image" + " ".join(image_descriptions) + ","
 
-     # STEP 1: Pre-query processing - classify the query
-    print("Classifying query...")
+    # STEP 1: Pre-query processing - classify the query
     classification = classify_query(full_query)
-    print(f"Query classified as: {classification['type']} with confidence {classification['confidence']}")
 
     # Handle potential prompt attacks
     if classification["type"] == "prompt_attack":
@@ -913,12 +837,9 @@ def followup(followup_question, source_type, images = None):
     # Detect if the followup is related to previous context
     relation_result = detect_followup_relation(followup_question, context)
     use_context = relation_result["is_related"]  # Extract the boolean value from the dictionary
-    print(f"Context used: {use_context} (Confidence: {relation_result['confidence']})")
 
     # STEP 2: Rewrite query for better RAG performance
-    print("Rewriting query...")
     rewritten_query = rewrite(full_query, use_context)
-    print(f"Rewritten query: {rewritten_query}")
 
     if rewritten_query == "False":
         return "I don't feel like I can answer this question. Maybe you should ask the TAs?", "No sources used."
@@ -926,20 +847,16 @@ def followup(followup_question, source_type, images = None):
     # STEP 3: Determine source type and filters
     # If the source_type is specified and not 'Default', use that instead of auto-selecting
     if source_type and source_type != 'Default':
-        print(f"Using specified source type: {source_type}")
         filter_conditions = source_type_to_filters(source_type)
     else:
         # Auto-select source type
-        print("Auto-selecting source type...")
         source_selection = select_source_type(full_query)
         filter_conditions = source_selection["filter_conditions"]
         # Store the selection for logging
         selected_source_type = source_selection["source_type"]
-        print(f"Auto-selected source type: {selected_source_type} with filters: {filter_conditions}")
     
     # Add visibility filter
     filter_conditions["visibility"] = True
-    print(f"Selected source type: {source_selection['source_type']} with filters: {filter_conditions}")
 
     nb_followup += 1
     top_k=4
