@@ -35,6 +35,7 @@ class ABTestChoiceRequest(BaseModel):
     chosen_variant: str
     reason: Optional[str] = ""
     ab_test_data: dict
+    user_email: Optional[str] = None
 
 # Initialize chatbot
 chatbot = ChatBot()
@@ -118,7 +119,8 @@ async def submit_ab_test_choice(choice_request: ABTestChoiceRequest):
         result = await tutor_bot.save_ab_test_choice(
             choice_request.ab_test_data,
             choice_request.chosen_variant,
-            choice_request.reason or ""
+            choice_request.reason or "",
+            choice_request.user_email
         )
         
         return {

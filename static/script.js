@@ -386,6 +386,9 @@ async function selectABTestResponse(threadId, chosenVariant, buttonElement) {
     const abTestData = abTestElement.abTestData;
     
     try {
+        // Get user email from localStorage
+        const userEmail = localStorage.getItem('userEmail');
+        
         // Send the choice to the backend
         const response = await fetch('/ab-test-choice', {
             method: 'POST',
@@ -396,7 +399,8 @@ async function selectABTestResponse(threadId, chosenVariant, buttonElement) {
                 thread_id: threadId,
                 chosen_variant: chosenVariant,
                 reason: reason,
-                ab_test_data: abTestData
+                ab_test_data: abTestData,
+                user_email: userEmail
             }),
         });
         

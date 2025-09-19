@@ -35,12 +35,13 @@ class SupabaseStorage:
             raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
         self.supabase: Client = create_client(url, key)
     
-    async def create_tutorbot_output(self, thread_id: str, chat_json: str):
+    async def create_tutorbot_output(self, thread_id: str, chat_json: str, user_email: Optional[str] = None):
         """Save chat output to Supabase"""
         try:
             data = {
                 "thread_id": thread_id,
                 "chat_json": chat_json,
+                "user_email": user_email,
                 "created_at": datetime.utcnow().isoformat()
             }
             result = self.supabase.table("tutorbot_outputs").insert(data).execute()
@@ -151,12 +152,14 @@ class TutorBot:
         run_readable_id: Optional[str] = None,
         problem_set_title: Optional[str] = None,
         problem: str = "",
+        user_email: Optional[str] = None,
     ):
         """Initialize the AI tutor chatbot"""
         self.bot_name = name
         self.model = model or os.getenv("AI_DEFAULT_TUTOR_MODEL", "claude-3-haiku-20240307")
         self.temperature = float(os.getenv("AI_DEFAULT_TEMPERATURE", "0.7")) if temperature is None else temperature
         self.user_id = user_id
+        self.user_email = user_email
         self.thread_id = thread_id or uuid4().hex
         
         # Problem set specific attributes
@@ -271,7 +274,7 @@ class TutorBot:
                     new_history, new_intent_history, new_assessment_history, metadata
                 )
                 storage = get_storage()
-                await storage.create_tutorbot_output(self.thread_id, json_output)
+                await storage.create_tutorbot_output(self.thread_id, json_output, self.user_email)
 
         except Exception:
             yield '<!-- {"error":{"message":"An error occurred, please try again"}} -->'
@@ -369,7 +372,7 @@ class TutorBot:
         # Yield the structured A/B test response as JSON
         yield f'<!-- {json.dumps(ab_response)} -->'
     
-    async def save_ab_test_choice(self, ab_response_data: dict, chosen_variant: str, user_preference_reason: str = ""):
+    async def save_ab_test_choice(self, ab_response_data: dict, chosen_variant: str, user_preference_reason: str = "", user_email: Optional[str] = None):
         """Save the user's A/B test choice and update chat history"""
         
         # Get the chosen response data
@@ -406,7 +409,7 @@ class TutorBot:
         
         storage = get_storage()
         await storage.create_tutorbot_output(
-            self.thread_id, json_output
+            self.thread_id, json_output, user_email
         )
         
         return {
@@ -462,6 +465,7 @@ class ChatBot:
                 temperature=self.default_temperature,
                 problem_set_title=problem_set_title,
                 problem="",  # Can be set based on context later
+                user_email=user_id,  # user_id is the email in this context
             )
             
             # Get response from tutor bot
