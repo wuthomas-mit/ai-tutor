@@ -242,31 +242,25 @@ async function sendMessage(message) {
         // Remove loading indicator
         messagesContainer.removeChild(loadingElement);
 
-        // Add bot message to chat
-        const botMessageElement = document.createElement('div');
-        botMessageElement.className = 'message bot-message';
-        
-        // Convert markdown and render LaTeX
-        const renderedMessage = marked.parse(data.response);
-        
-        botMessageElement.innerHTML = `
-            <div class="message-content">${renderedMessage}</div>
-        `;
-        
-        // Add feedback buttons after the message content
-        const feedbackButtons = createFeedbackButtons();
-        botMessageElement.appendChild(feedbackButtons);
-        
-        messagesContainer.appendChild(botMessageElement);
+        // Check if this is an A/B test response
+        if (data.response && data.response.includes('<!-- ') && data.response.includes(' -->')) {
+            const abTestMatch = data.response.match(/<!-- (.*?) -->/);
+            if (abTestMatch) {
+                try {
+                    const abTestData = JSON.parse(abTestMatch[1]);
+                    if (abTestData.type === 'ab_test_response') {
+                        // Handle A/B test response
+                        handleABTestResponse(abTestData);
+                        return;
+                    }
+                } catch (e) {
+                    console.log('Not an A/B test response, proceeding normally');
+                }
+            }
+        }
 
-        // Render LaTeX in the new message
-        renderMathInElement(botMessageElement, {
-            delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false}
-            ],
-            throwOnError: false
-        });
+        // Handle normal response
+        handleNormalResponse(data);
 
     } catch (error) {
         console.error('Error:', error);
@@ -286,6 +280,159 @@ async function sendMessage(message) {
         
         // Scroll to bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+// Function to handle normal responses
+function handleNormalResponse(data) {
+    // Add bot message to chat
+    const botMessageElement = document.createElement('div');
+    botMessageElement.className = 'message bot-message';
+    
+    // Convert markdown and render LaTeX
+    const renderedMessage = marked.parse(data.response);
+    
+    botMessageElement.innerHTML = `
+        <div class="message-content">${renderedMessage}</div>
+    `;
+    
+    // Add feedback buttons after the message content
+    const feedbackButtons = createFeedbackButtons();
+    botMessageElement.appendChild(feedbackButtons);
+    
+    messagesContainer.appendChild(botMessageElement);
+
+    // Render LaTeX in the new message
+    renderMathInElement(botMessageElement, {
+        delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+    });
+}
+
+// Function to handle A/B test responses
+function handleABTestResponse(abTestData) {
+    // Create A/B test comparison container
+    const abTestElement = document.createElement('div');
+    abTestElement.className = 'message ab-test-message';
+    
+    const controlContent = marked.parse(abTestData.control.content);
+    const treatmentContent = marked.parse(abTestData.treatment.content);
+    
+    abTestElement.innerHTML = `
+        <div class="ab-test-container">
+            <div class="ab-test-header">
+                <h3>A/B Test: Choose the Better Response</h3>
+                <p>Please compare the two responses below and select which one you think is better.</p>
+            </div>
+            
+            <div class="ab-test-responses">
+                <div class="ab-test-response" data-variant="control">
+                    <div class="ab-test-response-header">
+                        <span class="response-label">Response A</span>
+                    </div>
+                    <div class="ab-test-response-content">${controlContent}</div>
+                    <button class="ab-test-select-btn" onclick="selectABTestResponse('${abTestData.metadata.thread_id}', 'control', this)">
+                        Select Response A
+                    </button>
+                </div>
+                
+                <div class="ab-test-response" data-variant="treatment">
+                    <div class="ab-test-response-header">
+                        <span class="response-label">Response B</span>
+                    </div>
+                    <div class="ab-test-response-content">${treatmentContent}</div>
+                    <button class="ab-test-select-btn" onclick="selectABTestResponse('${abTestData.metadata.thread_id}', 'treatment', this)">
+                        Select Response B
+                    </button>
+                </div>
+            </div>
+            
+            <div class="ab-test-feedback">
+                <label for="ab-test-reason">Why did you choose this response? (optional)</label>
+                <textarea id="ab-test-reason" placeholder="Your feedback helps improve the AI tutor..."></textarea>
+            </div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(abTestElement);
+    
+    // Render LaTeX in both responses
+    const responseContents = abTestElement.querySelectorAll('.ab-test-response-content');
+    responseContents.forEach(content => {
+        renderMathInElement(content, {
+            delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '$', right: '$', display: false}
+            ],
+            throwOnError: false
+        });
+    });
+    
+    // Store the A/B test data for later submission
+    abTestElement.abTestData = abTestData;
+}
+
+// Function to handle A/B test response selection
+async function selectABTestResponse(threadId, chosenVariant, buttonElement) {
+    const abTestContainer = buttonElement.closest('.ab-test-container');
+    const reasonTextarea = abTestContainer.querySelector('#ab-test-reason');
+    const reason = reasonTextarea.value.trim();
+    
+    // Get the stored A/B test data
+    const abTestElement = buttonElement.closest('.ab-test-message');
+    const abTestData = abTestElement.abTestData;
+    
+    try {
+        // Send the choice to the backend
+        const response = await fetch('/ab-test-choice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                thread_id: threadId,
+                chosen_variant: chosenVariant,
+                reason: reason,
+                ab_test_data: abTestData
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const result = await response.json();
+        
+        // Update UI to show selection was made
+        const allButtons = abTestContainer.querySelectorAll('.ab-test-select-btn');
+        allButtons.forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+        });
+        
+        // Highlight the chosen response
+        const chosenResponse = abTestContainer.querySelector(`[data-variant="${chosenVariant}"]`);
+        chosenResponse.classList.add('selected');
+        
+        // Add confirmation message
+        const confirmationDiv = document.createElement('div');
+        confirmationDiv.className = 'ab-test-confirmation';
+        confirmationDiv.innerHTML = `
+            <p>✅ Thank you! Your choice has been recorded and will help improve the AI tutor.</p>
+            <p>Selected: Response ${chosenVariant === 'control' ? 'A' : 'B'}</p>
+        `;
+        abTestContainer.appendChild(confirmationDiv);
+        
+        // Disable the reason textarea
+        reasonTextarea.disabled = true;
+        
+    } catch (error) {
+        console.error('Error submitting A/B test choice:', error);
+        alert('Failed to submit your choice. Please try again.');
     }
 }
 

@@ -203,7 +203,7 @@ class TutorBot:
         self,
         message: str,
         *,
-        debug: bool = False,
+        debug: bool = True,  # Enable debug by default to see what's happening
     ) -> AsyncGenerator[str, None]:
         """Get tutor response using the open-learning-ai-tutor package"""
         
@@ -226,7 +226,6 @@ class TutorBot:
         try:
             # Call the tutor package - convert problem_set to string
             problem_set_str = json.dumps(self.problem_set) if isinstance(self.problem_set, dict) else str(self.problem_set)
-            print(problem_set_str)
 
             result = message_tutor(
                 self.problem,
@@ -239,7 +238,6 @@ class TutorBot:
                 tools=tutor_tools,
                 variant=self.variant,
             )
-            print(result)
             # Handle A/B testing responses
             if isinstance(result, tuple) and len(result) > 0 and isinstance(result[0], dict) and result[0].get("is_ab_test"):
                 async for response_chunk in self._handle_ab_test_response(result, message):
@@ -378,13 +376,13 @@ class TutorBot:
         chosen_response_data = ab_response_data[chosen_variant]
         chosen_content = chosen_response_data["content"]
         
-        # Get the appropriate history based on choice
+        # Get the appropriate history based on choice (these are already serialized)
         if chosen_variant == "control":
             new_history = ab_response_data["_control_history"]
         else:
             new_history = ab_response_data["_treatment_history"]
         
-        # Get other data
+        # Get other data (these are already serialized)
         new_intent_history = ab_response_data["_intent_history"]
         new_assessment_history = ab_response_data["_assessment_history"]
         
@@ -398,10 +396,14 @@ class TutorBot:
             "user_preference_reason": user_preference_reason,
         }
         
-        # Save to database
-        json_output = tutor_output_to_json(
-            new_history, new_intent_history, new_assessment_history, metadata
-        )
+        # Create the JSON output manually since the histories are already serialized
+        json_output = json.dumps({
+            "chat_history": new_history,  # Already serialized
+            "intent_history": new_intent_history,  # Already serialized
+            "assessment_history": new_assessment_history,  # Already serialized
+            "metadata": metadata
+        })
+        
         storage = get_storage()
         await storage.create_tutorbot_output(
             self.thread_id, json_output

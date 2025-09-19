@@ -30,6 +30,12 @@ class ChatRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
 
+class ABTestChoiceRequest(BaseModel):
+    thread_id: str
+    chosen_variant: str
+    reason: Optional[str] = ""
+    ab_test_data: dict
+
 # Initialize chatbot
 chatbot = ChatBot()
 
@@ -98,6 +104,31 @@ async def ask_question(chat_request: ChatRequest):
 async def submit_feedback(feedback_data: dict):
     # Handle feedback without database for now
     return {"status": "success", "message": "Feedback received"}
+
+@app.post("/ab-test-choice")
+async def submit_ab_test_choice(choice_request: ABTestChoiceRequest):
+    try:
+        # Create a TutorBot instance to access the save method
+        from chatbot import TutorBot
+        
+        # Create TutorBot instance with the thread_id
+        tutor_bot = TutorBot("generic_user", thread_id=choice_request.thread_id)
+        
+        # Save the A/B test choice
+        result = await tutor_bot.save_ab_test_choice(
+            choice_request.ab_test_data,
+            choice_request.chosen_variant,
+            choice_request.reason or ""
+        )
+        
+        return {
+            "status": "success", 
+            "message": "A/B test choice recorded successfully",
+            "chosen_variant": choice_request.chosen_variant
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save A/B test choice: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

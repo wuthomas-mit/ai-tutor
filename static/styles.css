@@ -297,33 +297,210 @@ body {
   margin-top: 12px;
 }
 
+/* Feedback Buttons */
 .feedback-buttons {
   display: flex;
   gap: 8px;
-  margin: 4px 0 0 24px;
+  margin-top: 12px;
+  opacity: 0.7;
+  transition: opacity 0.3s;
 }
 
-.feedback-button {
+.feedback-buttons:hover {
+  opacity: 1;
+}
+
+.feedback-btn {
   background: none;
-  border: none;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 4px 8px;
   cursor: pointer;
-  padding: 4px;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  font-size: 12px;
+  color: #666;
+  transition: all 0.3s;
 }
 
-.feedback-button:hover {
-  opacity: 1;
+.feedback-btn:hover {
+  background-color: #f5f5f5;
+  border-color: #1a1a1a;
 }
 
-.feedback-button.active-positive {
-  color: #00aa00;
-  opacity: 1;
+.feedback-btn.active {
+  background-color: #1a1a1a;
+  color: white;
+  border-color: #1a1a1a;
 }
 
-.feedback-button.active-negative {
-  color: #aa0000;
-  opacity: 1;
+/* A/B Test Styles */
+.ab-test-message {
+  margin: 20px 0;
+  border: 2px solid #e5e5e5;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.ab-test-container {
+  padding: 0;
+}
+
+.ab-test-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+.ab-test-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ab-test-header p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 14px;
+}
+
+.ab-test-responses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  background: white;
+}
+
+.ab-test-response {
+  padding: 20px;
+  border-right: 1px solid #e5e5e5;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.ab-test-response:last-child {
+  border-right: none;
+}
+
+.ab-test-response:hover {
+  background: #f8f9fa;
+}
+
+.ab-test-response.selected {
+  background: #e8f5e8;
+  border: 2px solid #28a745;
+}
+
+.ab-test-response-header {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.response-label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ab-test-response-content {
+  margin-bottom: 20px;
+  line-height: 1.6;
+  min-height: 100px;
+}
+
+.ab-test-select-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ab-test-select-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.ab-test-select-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ab-test-feedback {
+  padding: 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #e5e5e5;
+}
+
+.ab-test-feedback label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.ab-test-feedback textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.ab-test-feedback textarea:focus {
+  border-color: #667eea;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.ab-test-confirmation {
+  margin-top: 16px;
+  padding: 16px;
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  color: #155724;
+}
+
+.ab-test-confirmation p {
+  margin: 0 0 4px 0;
+}
+
+.ab-test-confirmation p:last-child {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Responsive design for A/B test */
+@media (max-width: 768px) {
+  .ab-test-responses {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  
+  .ab-test-response {
+    border-right: none;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  
+  .ab-test-response:last-child {
+    border-bottom: none;
+  }
 }
 
 /* Markdown Styles */
