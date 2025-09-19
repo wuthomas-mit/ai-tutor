@@ -1,0 +1,239 @@
+\documentclass{article}% [twoside]
+\setlength{\oddsidemargin}{0.25 in}
+\setlength{\evensidemargin}{-0.25 in}
+\setlength{\topmargin}{-0.6 in}
+\setlength{\textwidth}{6.5 in}
+\setlength{\textheight}{8.5 in}
+\setlength{\headsep}{0.75 in}
+\setlength{\parindent}{0 in}
+\setlength{\parskip}{0.1 in}
+\newcommand{\M}{\mathbf}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\B}{\boldsymbol}
+\usepackage{bm}
+\usepackage{comment}
+\usepackage{amsmath}
+\usepackage{cancel}
+\usepackage{etoolbox}
+\usepackage{subcaption}
+\usepackage{environ}
+\usepackage{float}
+\usepackage{xcolor}
+
+\newbool{showsolution}
+\setbool{showsolution}{true} % Change to false to hide solutions by default
+
+\NewEnviron{solution}{
+  \ifbool{showsolution}
+    {
+    %\begin{quote}
+    %\noindent
+      \textbf{Solution:} \BODY
+     %\end{quote}
+    }
+    {} % If \showsolution is false, do nothing
+}
+
+%
+% ADD PACKAGES here:
+%
+\usepackage{amsmath,amsfonts,amssymb,graphicx,mathtools,flexisym,enumerate,xcolor, makecell}
+\DeclareMathOperator\median{Median}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newcommand{\RR}{\mathbb{R}}
+%
+% The following commands set up the lecnum (lecture number)
+% counter and make various numbering schemes work relative
+% to the lecture number.
+%
+
+
+\newcounter{lecnum}
+\renewcommand{\thepage}{\thelecnum-\arabic{page}}
+\renewcommand{\thesection}{\thelecnum.\arabic{section}}
+\renewcommand{\theequation}{\thelecnum.\arabic{equation}}
+\renewcommand{\thefigure}{\thelecnum.\arabic{figure}}
+\renewcommand{\thetable}{\thelecnum.\arabic{table}}
+
+%
+% The following macro is used to generate the header.
+%
+\newcommand{\lecture}[4]{
+   \pagestyle{myheadings}
+   \thispagestyle{plain}
+   \newpage
+   \setcounter{lecnum}{#1}
+   \setcounter{page}{1}
+   \noindent
+   \begin{center}
+   \framebox{
+      \vbox{\vspace{2mm}
+    \hbox to 6.28in { {\bf 15.095: Machine Learning Under a Modern Optimization Lens
+	\hfill Fall 2025} }
+       \vspace{4mm}
+       \hbox to 6.28in { {\Large \hfill Homework #1: Due #2  \hfill} }
+       \vspace{2mm}
+       \hbox to 6.28in { {\it \hfill} }
+      \vspace{2mm}}
+   }
+   \end{center}
+   \markboth{Homework #1: #2}{Homework #1: #2}
+   \vspace*{4mm}
+}
+
+\renewcommand{\cite}[1]{[#1]}
+\def\beginrefs{\begin{list}%
+        {[\arabic{equation}]}{\usecounter{equation}
+         \setlength{\leftmargin}{2.0truecm}\setlength{\labelsep}{0.4truecm}%
+         \setlength{\labelwidth}{1.6truecm}}}
+\def\endrefs{\end{list}}
+\def\bibentry#1{\item[\hbox{[#1]}]}
+
+%Use this command for a figure; it puts a figure in wherever you want it.
+%usage: \fig{NUMBER}{SPACE-IN-INCHES}{CAPTION}
+\newcommand{\fig}[3]{
+			\vspace{#2}
+			\begin{center}
+			Figure \thelecnum.#1:~#3
+			\end{center}
+	}
+% Use these for theorems, lemmas, proofs, etc.
+\newtheorem{theorem}{Theorem}[lecnum]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newenvironment{proof}{{\bf Proof:}}{\hfill\rule{2mm}{2mm}}
+
+% **** IF YOU WANT TO DEFINE ADDITIONAL MACROS FOR YOURSELF, PUT THEM HERE:
+
+\usepackage[english]{babel}
+\usepackage[hidelinks]{hyperref}
+\usepackage[square,numbers]{natbib}
+\bibliographystyle{abbrvnat}
+
+
+
+\begin{document}
+
+\lecture{1}{September 15}{}{}
+
+Hand in: \underline{\textbf{pdf}} upload to Gradescope. Please append any Julia code \underline{\textbf{at the end}} of the whole pdf.
+
+Note: this homework covers the first three lectures and two recitations. We recommend attempting questions after the relevant content has been covered in class.
+
+
+\section*{Question 2: Robust Regression (30 points)}
+\subsection*{Part A: Adaptive Lasso (15 points)}
+Assume that we are given a data set for regression ($\boldsymbol{x}_i$, $y_i$), $i= 1,..., n$, where $\boldsymbol{x}_i \in \mathbb{R}^p$, $y_i \in \mathbb{R}$ and we would like to predict $y$ given $\boldsymbol{x}$. To solve this problem, we want to use Adaptive Lasso, introduced in \cite{adaptive_lasso}: 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \| \mathbf{W}\boldsymbol{\beta}\|_1,
+\end{equation}
+where $\mathbf{W} = \text{diag}(w_1, \hdots, w_p)$  with $w_j \ge 0 $ representing a non-negatives weight on feature $j$. 
+\subsubsection*{(a)}
+Prove that Adaptive Lasso is equivalent to a robust regression problem where our data $\mathbf{X}$ has the perturbation $\mathbf{\Delta} \in \mathcal{U} = \{\mathbf{\Delta} \in \mathbb{R}^{n\times p}: \| \mathbf{\Delta}_j \|_2 \le \lambda w_j \quad \forall j \in 1,\hdots, p\}$. Namely, \textbf{prove that}
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{ \mathbf{\Delta} \in \mathcal{U}} 
+    \| \mathbf{y} - (\mathbf{X} + \mathbf{\Delta} )\boldsymbol{\beta} \|_2 = \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \| \mathbf{W}\boldsymbol{\beta}\|_1.
+\end{equation}
+
+
+\subsubsection*{(b)}
+Suppose the weights $\mathbf{W}$ are estimated from data, therefore may also suffer from estimation errors. In particular, suppose $\mathbf{W}$ falls in an uncertainty set $\mathcal{U}_W = \{\mathbf{W} \in \mathbb{R}^{n\times p}:  \|\mathbf{W}\|_{F_1} \le \mu \}$. Formulate the objective function of the regression accounting for this uncertainty (\emph{Your final answer should not contain $\min \max$}).
+
+
+\subsection*{Part B: Group Lasso (15 points)}
+Suppose, instead, we want to solve this problem using Group Lasso, introduced in \cite{group_lasso}: 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \sum_{g \in G} \sqrt{d_g} \| \boldsymbol{\beta}_g \|_2,
+\end{equation}
+where $G$ is a partition of the feature indices $\{1,\hdots. p\}$,  each group $g$ has dimension $d_g$, and $\boldsymbol{\beta}_g = (\beta_j)_{j \in g} \in \mathbb{R}^{d_g}$ consists of coefficients in group $g$. We assume the groups are mutually exclusive and exhaustive.
+In this question, we will prove that Group Lasso is equivalent to a robust regression problem, in which we consider that our data $\mathbf{X}$ has the perturbation $\mathbf{\Delta}$ where $\mathbf{\Delta} \in \mathcal{U}  = \{\mathbf{\Delta} \in \mathbb{R}^{n \times p}: \| \mathbf{\Delta}_g \| _{F_2} \leq \lambda \sqrt{d_g} \quad \forall g \in G \} $. 
+$\mathbf{\Delta}_g$ represents the columns of $\Delta_j $
+\textbf{Prove that}
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{ \mathbf{\Delta} \in \mathcal{U}} 
+    \| \mathbf{y} - (\mathbf{X} + \mathbf{\Delta} )\boldsymbol{\beta} \|_2 = 
+    \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \sum_{g \in G} \sqrt{d_g} \| \boldsymbol{\beta}_g \|_2.
+\end{equation}
+\textbf{Hint}: It may be helpful to set $\mathbf{\Delta}_g^0 = -\lambda \sqrt{d_g} \frac{(\mathbf{y} - \mathbf{X}\boldsymbol{\beta} )}{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2} \frac{\boldsymbol{\beta}_g}{\|\boldsymbol{\beta}_g\|_2}$ when showing the equality holds for some $\mathbf{\Delta}^0 \in \mathcal{U}$.
+
+
+\clearpage
+\section*{Question 3: Regularized Sparse Regression Revisited (40 points)}
+In this question, we consider the problem of Weighted Sparse Linear
+Regression with $\ell_2-\ell_0$ regularization.
+More concretely, if $\mathbf{X}\in\R^{n\times p}$ is our data matrix, $\boldsymbol{\beta}\in\R^p$ is the regression coefficient vector and $\mu_i\geq 0$ with $i\in[n]$ are non-negative weights,
+then we attempt to solve the following problem for $\rho,\lambda >0$ :
+\begin{equation} \label{eq:sparse_regr}
+    \makecell{\begin{aligned}
+         \min_{\boldsymbol{\beta}\in \R^p} \text{  } &\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \boldsymbol{\beta})^2  + \rho \| \boldsymbol{\beta} \|_0+\lambda \|\bm{\beta}\|_2^2 \\
+         \text{s.t. } &\|\boldsymbol{\beta}\|_0\leq k%, \\
+        %& \beta_i\geq 0, \quad \forall i \in [m]
+    \end{aligned}}
+\end{equation}
+
+\begin{enumerate}[(a)]
+    \item (8 points) Argue why the formulation in Equation (\ref{eq:sparse_regr}) can be rewritten as the following inner-outer problem:
+    \begin{equation}
+    \label{eq:outer}
+    \begin{aligned}
+        \min_{\bm{s}\in S_k^p}c(\bm{s})
+        \end{aligned}
+    \end{equation}
+    with $S_k^p=\{\bm{s}\in\{0,1\}^p:\bm{1}^T\bm{s}\leq k\}$, $\bm{S}=\text{diagonal}(\bm{s})$ and:
+    \begin{equation}\label{eq:s_inner}
+        c(\bm{s})=\min_{\boldsymbol{\beta}\in \R^p} \text{  }\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  + \rho \| \boldsymbol{\beta} \|_0+\lambda \|\bm{\beta}\|_2^2
+    \end{equation}
+    In your answer make sure to state what the components of $\bm{s}$ imply about the components of $\bm{\beta}$ at optimality.
+
+\item (12 points) Further show that the problem of Equation (\ref{eq:outer}) is equivalent to the problem:
+\begin{equation}
+    \label{eq:gouter}
+    \min_{\bm{s}\in S_k^p}g(\bm{s})
+\end{equation}
+where:
+\begin{equation}
+    \label{eq:inner_g}
+    %\begin{aligned}
+            g(\bm{s}) = \min_{\boldsymbol{\beta}\in \R^p} \text{  }\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  +\lambda \|\bm{\beta}\|_2^2 +\rho \bm{e}^T\bm{s}
+    %\end{aligned}
+\end{equation}
+Comment on whether $g(\bm{s})=c(\bm{s})$.
+\\
+
+\item (10 points) Find a closed-form expression for $g(\bm{s})$. 
+
+
+\textbf{Hint}: You may consider converting the summation to matrix form first.
+
+
+\item (10 points) Assume that for some appropriate matrix $\bm{M}$ have:
+\begin{equation}
+        g(\bm{s})=\bm{y}^T\bm{M}^T(\bm{I}_n+\frac{1}{\lambda} \sum_i s_i(\bm{MX})_i(\bm{MX})_i^T)^{-1}\bm{My}+\rho \bm{e}^T\bm{s}
+\end{equation}
+
+Implement the resulting cutting-plane algorithm of Eq. (\ref{eq:gouter}).
+Use Julia/JuMP and fill the code template that exists in the HW1 folder. 
+Then, for the given dataset, report the optimal objective $g(\bm{s}^*)$ and the names of the selected features.
+
+\textbf{Hint}: You only need to complete the function "solve\_inner\_problem".
+
+
+\end{enumerate}
+
+
+\bibliographystyle{ecta}
+\bibliography{reference.bib}
+% Let's first ignore the $L_0$-norm constraint and let's define:
+% \begin{equation}
+%     f(1) 
+% \end{equation}f
+
+
+
+%\textbf{Solution}
+
+\end{document}

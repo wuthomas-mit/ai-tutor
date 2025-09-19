@@ -170,6 +170,7 @@ async function sendMessage(message) {
     // Get session info from localStorage
     const userEmail = localStorage.getItem('userEmail');
     const sessionId = localStorage.getItem('sessionId');
+    const selectedProblemSet = localStorage.getItem('selectedProblemSet');
     
     if (!userEmail || !sessionId) {
         alert('Please log in again');
@@ -182,7 +183,8 @@ async function sendMessage(message) {
         message: message,
         source_type: currentSourceType || "default",  // Include the selected source type
         user_id: userEmail,  // Use email as user_id
-        session_id: sessionId
+        session_id: sessionId,
+        problem_set: selectedProblemSet || null  // Include selected problem set
     };
     
     if (pastedImages.length > 0) {

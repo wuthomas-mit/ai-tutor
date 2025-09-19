@@ -121,6 +121,99 @@ body {
   background-color: #eeeeee;
 }
 
+/* Course and Problem Set Selector Styles */
+.course-selector-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #e5e5e5;
+}
+
+.course-info {
+  display: flex;
+  align-items: center;
+}
+
+.course-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.course-display label {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.course-display span {
+  color: #0066cc;
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.pset-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pset-selector label {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.pset-dropdown {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: white;
+  color: #374151;
+  font-size: 14px;
+  min-width: 200px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.pset-dropdown:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.pset-dropdown:hover {
+  border-color: #9ca3af;
+}
+
+/* System message styles */
+.system-message {
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.system-message .message-content {
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 16px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #0369a1;
+  max-width: none;
+}
+
+.system-indicator {
+  font-size: 16px;
+}
+
 .login-subtitle {
   color: #666;
   margin-bottom: 20px;

@@ -9,6 +9,25 @@
             <button onclick="logout()" class="logout-btn">Logout</button>
         </div>
     </div>
+    
+    <!-- Course and Problem Set Selector -->
+    <div class="course-selector-container">
+        <div class="course-info">
+            <div class="course-display">
+                <label>Course:</label>
+                <span id="current-course">15.095</span>
+            </div>
+        </div>
+        <div class="pset-selector">
+            <label for="pset-select">Problem Set:</label>
+            <select id="pset-select" class="pset-dropdown">
+                <option value="">Select a Problem Set</option>
+                <option value="pset1">Problem Set 1: Search</option>
+                <option value="pset2">Problem Set 2: Games</option>
+            </select>
+        </div>
+    </div>
+    
     <div class="messages" id="messages">
         <!-- Messages will be inserted here -->
     </div>
@@ -29,6 +48,9 @@
 
 {% block scripts %}
 <script>
+// Global variable to store selected problem set
+let selectedProblemSet = '';
+
 // Check if user is logged in on page load
 window.addEventListener('DOMContentLoaded', function() {
     const userEmail = localStorage.getItem('userEmail');
@@ -42,11 +64,59 @@ window.addEventListener('DOMContentLoaded', function() {
     
     // Display user email
     document.getElementById('user-email').textContent = userEmail;
+    
+    // Set up problem set selector
+    setupProblemSetSelector();
 });
+
+function setupProblemSetSelector() {
+    const psetSelect = document.getElementById('pset-select');
+    
+    // Handle problem set selection
+    psetSelect.addEventListener('change', function() {
+        selectedProblemSet = this.value;
+        
+        if (selectedProblemSet) {
+            // Update placeholder to reflect selected problem set
+            const messageInput = document.getElementById('message-input');
+            const selectedOption = this.options[this.selectedIndex];
+            messageInput.placeholder = 'Ask a question about ' + selectedOption.text;
+            
+            // Store selection in localStorage for persistence
+            localStorage.setItem('selectedProblemSet', selectedProblemSet);
+            
+            // Add a system message indicating the problem set change
+            addSystemMessage('Now working on: ' + selectedOption.text);
+        }
+    });
+    
+    // Load previously selected problem set
+    const savedProblemSet = localStorage.getItem('selectedProblemSet');
+    if (savedProblemSet) {
+        psetSelect.value = savedProblemSet;
+        selectedProblemSet = savedProblemSet;
+        
+        const selectedOption = psetSelect.options[psetSelect.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            const messageInput = document.getElementById('message-input');
+            messageInput.placeholder = 'Ask a question about ' + selectedOption.text;
+        }
+    }
+}
+
+function addSystemMessage(message) {
+    const messagesContainer = document.getElementById('messages');
+    const systemMessage = document.createElement('div');
+    systemMessage.className = 'message system-message';
+    systemMessage.innerHTML = '<div class="message-content"><div class="system-indicator">📚</div><span>' + message + '</span></div>';
+    messagesContainer.appendChild(systemMessage);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
 
 function logout() {
     localStorage.removeItem('userEmail');
     localStorage.removeItem('sessionId');
+    localStorage.removeItem('selectedProblemSet');
     window.location.href = '/';
 }
 </script>

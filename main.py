@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv 
 from chatbot import ChatBot, get_storage
+from typing import Optional
 from uuid import uuid4
 import re
 
@@ -20,10 +21,11 @@ templates = Jinja2Templates(directory="templates")
 # Pydantic models for requests
 class ChatRequest(BaseModel):
     message: str
-    image_data: str = None
+    image_data: Optional[str] = None
     source_type: str = "default"
-    session_id: str = None
-    user_id: str = None
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    problem_set: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -83,7 +85,8 @@ async def ask_question(chat_request: ChatRequest):
             user_id=chat_request.user_id,
             session_id=chat_request.session_id,
             image_data=chat_request.image_data,
-            source_type=chat_request.source_type
+            source_type=chat_request.source_type,
+            problem_set=chat_request.problem_set
         )
         
         return {"response": response}

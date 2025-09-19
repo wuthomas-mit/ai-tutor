@@ -226,7 +226,8 @@ class TutorBot:
         try:
             # Call the tutor package - convert problem_set to string
             problem_set_str = json.dumps(self.problem_set) if isinstance(self.problem_set, dict) else str(self.problem_set)
-            
+            print(problem_set_str)
+
             result = message_tutor(
                 self.problem,
                 problem_set_str,
@@ -238,7 +239,7 @@ class TutorBot:
                 tools=tutor_tools,
                 variant=self.variant,
             )
-
+            print(result)
             # Handle A/B testing responses
             if isinstance(result, tuple) and len(result) > 0 and isinstance(result[0], dict) and result[0].get("is_ab_test"):
                 async for response_chunk in self._handle_ab_test_response(result, message):
@@ -429,7 +430,8 @@ class ChatBot:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         image_data: Optional[str] = None,
-        source_type: str = "default"
+        source_type: str = "default",
+        problem_set: Optional[str] = None
     ) -> str:
         """
         Process a message and return a response
@@ -437,13 +439,26 @@ class ChatBot:
         This is the interface expected by main.py
         """
         try:
+            # Map problem set IDs to titles
+            problem_set_mapping = {
+                "pset1": "Problem Set 1: Search",
+                "pset2": "Problem Set 2: Games", 
+                "pset3": "Problem Set 3: Constraint Satisfaction",
+                "pset4": "Problem Set 4: Machine Learning",
+                "pset5": "Problem Set 5: Neural Networks"
+            }
+            
+            problem_set_title = None
+            if problem_set and problem_set in problem_set_mapping:
+                problem_set_title = problem_set_mapping[problem_set]
+            
             # Create a TutorBot instance for this conversation
             tutor_bot = TutorBot(
                 user_id=user_id or "anonymous",
                 thread_id=session_id,
                 model=self.default_model,
                 temperature=self.default_temperature,
-                problem_set_title=None,  # Can be set based on context later
+                problem_set_title=problem_set_title,
                 problem="",  # Can be set based on context later
             )
             

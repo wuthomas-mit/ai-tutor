@@ -1,0 +1,445 @@
+\documentclass{article}% [twoside]
+\setlength{\oddsidemargin}{0.25 in}
+\setlength{\evensidemargin}{-0.25 in}
+\setlength{\topmargin}{-0.6 in}
+\setlength{\textwidth}{6.5 in}
+\setlength{\textheight}{8.5 in}
+\setlength{\headsep}{0.75 in}
+\setlength{\parindent}{0 in}
+\setlength{\parskip}{0.1 in}
+\newcommand{\M}{\mathbf}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\B}{\boldsymbol}
+\usepackage{bm}
+\usepackage{comment}
+\usepackage{amsmath}
+\usepackage{cancel}
+\usepackage{etoolbox}
+\usepackage{subcaption}
+\usepackage{environ}
+\usepackage{float}
+\usepackage{xcolor}
+
+\newbool{showsolution}
+\setbool{showsolution}{true} % Change to false to hide solutions by default
+
+\NewEnviron{solution}{
+  \ifbool{showsolution}
+    {
+    %\begin{quote}
+    %\noindent
+      \textbf{Solution:} \BODY
+     %\end{quote}
+    }
+    {} % If \showsolution is false, do nothing
+}
+
+%
+% ADD PACKAGES here:
+%
+\usepackage{amsmath,amsfonts,amssymb,graphicx,mathtools,flexisym,enumerate,xcolor, makecell}
+\DeclareMathOperator\median{Median}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newcommand{\RR}{\mathbb{R}}
+%
+% The following commands set up the lecnum (lecture number)
+% counter and make various numbering schemes work relative
+% to the lecture number.
+%
+
+
+\newcounter{lecnum}
+\renewcommand{\thepage}{\thelecnum-\arabic{page}}
+\renewcommand{\thesection}{\thelecnum.\arabic{section}}
+\renewcommand{\theequation}{\thelecnum.\arabic{equation}}
+\renewcommand{\thefigure}{\thelecnum.\arabic{figure}}
+\renewcommand{\thetable}{\thelecnum.\arabic{table}}
+
+%
+% The following macro is used to generate the header.
+%
+\newcommand{\lecture}[4]{
+   \pagestyle{myheadings}
+   \thispagestyle{plain}
+   \newpage
+   \setcounter{lecnum}{#1}
+   \setcounter{page}{1}
+   \noindent
+   \begin{center}
+   \framebox{
+      \vbox{\vspace{2mm}
+    \hbox to 6.28in { {\bf 15.095: Machine Learning Under a Modern Optimization Lens
+	\hfill Fall 2025} }
+       \vspace{4mm}
+       \hbox to 6.28in { {\Large \hfill Homework #1: Due #2  \hfill} }
+       \vspace{2mm}
+       \hbox to 6.28in { {\it \hfill} }
+      \vspace{2mm}}
+   }
+   \end{center}
+   \markboth{Homework #1: #2}{Homework #1: #2}
+   \vspace*{4mm}
+}
+
+\renewcommand{\cite}[1]{[#1]}
+\def\beginrefs{\begin{list}%
+        {[\arabic{equation}]}{\usecounter{equation}
+         \setlength{\leftmargin}{2.0truecm}\setlength{\labelsep}{0.4truecm}%
+         \setlength{\labelwidth}{1.6truecm}}}
+\def\endrefs{\end{list}}
+\def\bibentry#1{\item[\hbox{[#1]}]}
+
+%Use this command for a figure; it puts a figure in wherever you want it.
+%usage: \fig{NUMBER}{SPACE-IN-INCHES}{CAPTION}
+\newcommand{\fig}[3]{
+			\vspace{#2}
+			\begin{center}
+			Figure \thelecnum.#1:~#3
+			\end{center}
+	}
+% Use these for theorems, lemmas, proofs, etc.
+\newtheorem{theorem}{Theorem}[lecnum]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newenvironment{proof}{{\bf Proof:}}{\hfill\rule{2mm}{2mm}}
+
+% **** IF YOU WANT TO DEFINE ADDITIONAL MACROS FOR YOURSELF, PUT THEM HERE:
+
+\usepackage[english]{babel}
+\usepackage[hidelinks]{hyperref}
+\usepackage[square,numbers]{natbib}
+\bibliographystyle{abbrvnat}
+
+
+
+\begin{document}
+
+\lecture{1}{September 15}{}{}
+
+Hand in: \underline{\textbf{pdf}} upload to Gradescope. Please append any Julia code \underline{\textbf{at the end}} of the whole pdf.
+
+Note: this homework covers the first three lectures and two recitations. We recommend attempting questions after the relevant content has been covered in class.
+
+
+\section*{Question 2: Robust Regression (30 points)}
+\subsection*{Part A: Adaptive Lasso (15 points)}
+Assume that we are given a data set for regression ($\boldsymbol{x}_i$, $y_i$), $i= 1,..., n$, where $\boldsymbol{x}_i \in \mathbb{R}^p$, $y_i \in \mathbb{R}$ and we would like to predict $y$ given $\boldsymbol{x}$. To solve this problem, we want to use Adaptive Lasso, introduced in \cite{adaptive_lasso}: 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \| \mathbf{W}\boldsymbol{\beta}\|_1,
+\end{equation}
+where $\mathbf{W} = \text{diag}(w_1, \hdots, w_p)$  with $w_j \ge 0 $ representing a non-negatives weight on feature $j$. 
+\subsubsection*{(a)}
+Prove that Adaptive Lasso is equivalent to a robust regression problem where our data $\mathbf{X}$ has the perturbation $\mathbf{\Delta} \in \mathcal{U} = \{\mathbf{\Delta} \in \mathbb{R}^{n\times p}: \| \mathbf{\Delta}_j \|_2 \le \lambda w_j \quad \forall j \in 1,\hdots, p\}$. Namely, \textbf{prove that}
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{ \mathbf{\Delta} \in \mathcal{U}} 
+    \| \mathbf{y} - (\mathbf{X} + \mathbf{\Delta} )\boldsymbol{\beta} \|_2 = \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \| \mathbf{W}\boldsymbol{\beta}\|_1.
+\end{equation}
+
+\begin{solution}
+By equation (2.3) from the book, 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{ \|\mathbf{\Delta}_j \|_2 \le \lambda} 
+    \| \mathbf{y} - (\mathbf{X} + \mathbf{\Delta} )\boldsymbol{\beta} \|_2 = \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \|\boldsymbol{\beta}\|_1 = \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \sum_{j=1}^p \lambda |\beta_j|.
+\end{equation}
+Replacing $\lambda$ with $\lambda w_j$ yields 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{ \|\mathbf{\Delta}_j \|_2 \le \lambda w_j} 
+    \| \mathbf{y} - (\mathbf{X} + \mathbf{\Delta} )\boldsymbol{\beta} \|_2 = \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \sum_{j=1}^p \lambda w_j |\beta_j| = \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda  \|\mathbf{W}\boldsymbol{\beta} \|_1.
+\end{equation}
+\end{solution}
+
+\subsubsection*{(b)}
+Suppose the weights $\mathbf{W}$ are estimated from data, therefore may also suffer from estimation errors. In particular, suppose $\mathbf{W}$ falls in an uncertainty set $\mathcal{U}_W = \{\mathbf{W} \in \mathbb{R}^{n\times p}:  \|\mathbf{W}\|_{F_1} \le \mu \}$. Formulate the objective function of the regression accounting for this uncertainty (\emph{Your final answer should not contain $\min \max$}).
+
+\begin{solution}
+The problem can be formulated as 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{\mathbf{W} \in \mathcal{U}_W} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \|\mathbf{W}\boldsymbol{\beta}\|_1 =\min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 +  \lambda \min_{\boldsymbol{\beta}} \max_{\mathbf{W} \in \mathcal{U}_W}\|\mathbf{W}\boldsymbol{\beta}\|_1. \label{eq:robust_minmax_W}
+\end{equation}
+Then, it remains to eliminate the $\max$ in $ \min_{\boldsymbol{\beta}} \max_{\mathbf{W} \in \mathcal{U}_W} \|\mathbf{W}\boldsymbol{\beta}\|_1$.
+By Theorem 2.2 from the book, if we set $\mathbf{y}- \mathbf{X}\boldsymbol{\beta} = 0$, we have 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{\mathbf{W} \in \mathcal{U}_W} \|0 + \mathbf{W}\boldsymbol{\beta}\|_1 = \min_{\boldsymbol{\beta}} \|0\|_1 + \mu \|\boldsymbol{\beta} \|_\infty = \min_{\boldsymbol{\beta}} \|\boldsymbol{\beta} \|_\infty .
+\end{equation}
+Substituting back into equation \eqref{eq:robust_minmax_W} yields 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 +  \lambda \min_{\boldsymbol{\beta}}  \mu \|\boldsymbol{\beta}\|_\infty = \min_{\boldsymbol{\beta}}\| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \mu \|\boldsymbol{\beta}\|_\infty. 
+\end{equation}
+\end{solution}
+
+\subsection*{Part B: Group Lasso (15 points)}
+Suppose, instead, we want to solve this problem using Group Lasso, introduced in \cite{group_lasso}: 
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \sum_{g \in G} \sqrt{d_g} \| \boldsymbol{\beta}_g \|_2,
+\end{equation}
+where $G$ is a partition of the feature indices $\{1,\hdots. p\}$,  each group $g$ has dimension $d_g$, and $\boldsymbol{\beta}_g = (\beta_j)_{j \in g} \in \mathbb{R}^{d_g}$ consists of coefficients in group $g$. We assume the groups are mutually exclusive and exhaustive.
+In this question, we will prove that Group Lasso is equivalent to a robust regression problem, in which we consider that our data $\mathbf{X}$ has the perturbation $\mathbf{\Delta}$ where $\mathbf{\Delta} \in \mathcal{U}  = \{\mathbf{\Delta} \in \mathbb{R}^{n \times p}: \| \mathbf{\Delta}_g \| _{F_2} \leq \lambda \sqrt{d_g} \quad \forall g \in G \} $. 
+$\mathbf{\Delta}_g$ represents the columns of $\Delta_j $
+\textbf{Prove that}
+\begin{equation}
+    \min_{\boldsymbol{\beta}} \max_{ \mathbf{\Delta} \in \mathcal{U}} 
+    \| \mathbf{y} - (\mathbf{X} + \mathbf{\Delta} )\boldsymbol{\beta} \|_2 = 
+    \min_{\boldsymbol{\beta}} \| \mathbf{y} - \mathbf{X} \boldsymbol{\beta} \|_2 + \lambda \sum_{g \in G} \sqrt{d_g} \| \boldsymbol{\beta}_g \|_2.
+\end{equation}
+\textbf{Hint}: It may be helpful to set $\mathbf{\Delta}_g^0 = -\lambda \sqrt{d_g} \frac{(\mathbf{y} - \mathbf{X}\boldsymbol{\beta} )}{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2} \frac{\boldsymbol{\beta}_g}{\|\boldsymbol{\beta}_g\|_2}$ when showing the equality holds for some $\mathbf{\Delta}^0 \in \mathcal{U}$.
+
+\begin{solution}
+Let $\mathcal{U} = \{\mathbf{\Delta} \in \mathbb{R}^{n \times p}: \| \mathbf{\Delta_g} \| _{F_2} \leq \lambda \sqrt{d_g} \quad \forall g \in G \} $ ($\| \cdot \|_{F_2} $ is the 2-Frobenius norm, defined in Chapter 2.1 of the book).
+Starting from the robust version:
+\begin{align} 
+    \min_{\boldsymbol{\beta}} \max_{ \mathbf{\Delta} \in \mathcal{U}} 
+    \| \mathbf{y} - (\mathbf{X} + \mathbf{\Delta} )\boldsymbol{\beta} \|_2  
+    &= \min_{\boldsymbol{\beta}} \max_{\|\mathbf{\Delta}_g\|_{F_2} \le \lambda \sqrt{d_g}} \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}  - \mathbf{\Delta}\boldsymbol{\beta}\|_2 \\
+    &= \min_{\boldsymbol{\beta}} \max_{\|\mathbf{\Delta}_g\|_{F_2} \le \lambda \sqrt{d_g}} \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}  - \sum_{g \in G}\mathbf{\Delta}_g\boldsymbol{\beta}_g\|_2. \label{eq:rob_el}
+\end{align}
+Using triangle inequality, we have 
+\begin{align}
+    \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}  - \sum_{g \in G}\mathbf{\Delta}_g\boldsymbol{\beta}_g\|_2 
+    & \le \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2 + \| \sum_{g \in G}\mathbf{\Delta}_g\boldsymbol{\beta}_g\|_2  \\
+    & \le  \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2 +  \sum_{g \in G} \|\mathbf{\Delta}_g\boldsymbol{\beta}_g\|_2.
+\end{align}
+Since $\|\mathbf{\Delta}_g \boldsymbol{\beta}_g \|_2 \le \|\mathbf{\Delta}_g\|_{F_2} \|\boldsymbol{\beta}_g\|_2 $ and $\|\mathbf{\Delta}_g\|_{F_2} \le \lambda\sqrt{d_g}$, then 
+\begin{align}
+    \|\mathbf{\Delta}_g\boldsymbol{\beta}_g\|_2 \le \lambda\sqrt{d_g}\| \boldsymbol{\beta}_g\|_2.
+\end{align}
+Then it follows that 
+\begin{align}
+    \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}  - \sum_{g \in G}\mathbf{\Delta}_g\boldsymbol{\beta}_g\|_2  \le \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2 + \sum_{g \in G}\lambda\sqrt{d_g}\| \boldsymbol{\beta}_g\|_2.
+\end{align}
+Next we will show that there exists a $\mathbf{\Delta}^0$ such that 
+\begin{align}
+    \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}  - \sum_{g \in G}\mathbf{\Delta}^0_g\boldsymbol{\beta}_g\|_2  = \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2 + \sum_{g \in G}\lambda\sqrt{d_g}\| \boldsymbol{\beta}_g\|_2. 
+\end{align}
+To see this, following the idea of the proof of Theorem 2.1, let $\mathbf{v}_g \in \mathbb{R}^{d_g}$ such that $\mathbf{v}_g = \frac{-\boldsymbol{\beta}_g}{\|\boldsymbol{\beta}_g\|_2}$.  Let 
+$$
+\mathbf{\Delta}_g^0 = \lambda \sqrt{d_g} \frac{(\mathbf{y} - \mathbf{X}\boldsymbol{\beta} )}{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2} \mathbf{v}^g = -\lambda \sqrt{d_g} \frac{(\mathbf{y} - \mathbf{X}\boldsymbol{\beta} )}{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2} \frac{\boldsymbol{\beta}_g}{\|\boldsymbol{\beta}_g\|_2}.
+$$
+Then substituting back yields  
+\begin{align}
+    \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} - \mathbf{\Delta}^0\boldsymbol{\beta}\|_2 &= \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}  - \sum_{g \in G}\mathbf{\Delta}^0_g\boldsymbol{\beta}_g\|_2  \\
+    &= \left | \left| \mathbf{y} - \mathbf{X}\boldsymbol{\beta}  +\sum_{g \in G}(\lambda \sqrt{d_g} \frac{(\mathbf{y} - \mathbf{X}\boldsymbol{\beta} )}{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2} \frac{\boldsymbol{\beta}_g}{\|\boldsymbol{\beta}_g\|_2} \boldsymbol{\beta}_g ) \right | \right|_2  \\
+    &= \left | \left| (\mathbf{y} - \mathbf{X}\boldsymbol{\beta}) \left( \frac{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}\|_2 + \sum_g (\lambda\sqrt{d_g}\|\boldsymbol{\beta}\|_2 )}{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}\|_2} \right) \right | \right|_2 \\
+    &= \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}\|_2 \left( \frac{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}\|_2+\sum_g(\lambda\sqrt{d_g}\|\boldsymbol{\beta}\|_2)}{\|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}\|_2} \right) \\
+    &= \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}\|_2 + \sum_g \lambda\sqrt{d_g}\|\boldsymbol{\beta}\|_2.
+\end{align}
+
+Therefore, 
+\begin{align}
+    \max_{\mathbf{\Delta} \in \mathcal{U}} \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta}  + \sum_{g \in G}\mathbf{\Delta}_g\boldsymbol{\beta}_g\|_2  = \|\mathbf{y} - \mathbf{X}\boldsymbol{\beta} \|_2 + \sum_{g \in G}\lambda\sqrt{d_g}\| \boldsymbol{\beta}_g\|_2.
+\end{align}
+
+\end{solution}
+\clearpage
+\section*{Question 3: Regularized Sparse Regression Revisited (40 points)}
+In this question, we consider the problem of Weighted Sparse Linear
+Regression with $\ell_2-\ell_0$ regularization.
+More concretely, if $\mathbf{X}\in\R^{n\times p}$ is our data matrix, $\boldsymbol{\beta}\in\R^p$ is the regression coefficient vector and $\mu_i\geq 0$ with $i\in[n]$ are non-negative weights,
+then we attempt to solve the following problem for $\rho,\lambda >0$ :
+\begin{equation} \label{eq:sparse_regr}
+    \makecell{\begin{aligned}
+         \min_{\boldsymbol{\beta}\in \R^p} \text{  } &\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \boldsymbol{\beta})^2  + \rho \| \boldsymbol{\beta} \|_0+\lambda \|\bm{\beta}\|_2^2 \\
+         \text{s.t. } &\|\boldsymbol{\beta}\|_0\leq k%, \\
+        %& \beta_i\geq 0, \quad \forall i \in [m]
+    \end{aligned}}
+\end{equation}
+
+\begin{enumerate}[(a)]
+    \item (8 points) Argue why the formulation in Equation (\ref{eq:sparse_regr}) can be rewritten as the following inner-outer problem:
+    \begin{equation}
+    \label{eq:outer}
+    \begin{aligned}
+        \min_{\bm{s}\in S_k^p}c(\bm{s})
+        \end{aligned}
+    \end{equation}
+    with $S_k^p=\{\bm{s}\in\{0,1\}^p:\bm{1}^T\bm{s}\leq k\}$, $\bm{S}=\text{diagonal}(\bm{s})$ and:
+    \begin{equation}\label{eq:s_inner}
+        c(\bm{s})=\min_{\boldsymbol{\beta}\in \R^p} \text{  }\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  + \rho \| \boldsymbol{\beta} \|_0+\lambda \|\bm{\beta}\|_2^2
+    \end{equation}
+    In your answer make sure to state what the components of $\bm{s}$ imply about the components of $\bm{\beta}$ at optimality.
+    
+    \begin{solution}
+    Just like in Lecture 3, in order to model sparsity, we introduce binary variables $\bm{s}\in\{0,1\}^p$ and we
+    make the substitution $\bm{\beta}\leftarrow \bm{S}\bm{\beta}$ in Equation (\ref{eq:sparse_regr}) where $\bm{S}=\text{diagonal}(\bm{s})$. 
+    Then, we replace the $L_0$-norm sparsity constraint with the binary constraint $\bm{e}^T\bm{s}\leq k$. 
+    With those modifications, the problem can be written as:
+    \begin{equation} \label{eq:s_2}
+    \makecell{\begin{aligned}
+         \min_{\boldsymbol{\beta}\in B,\:\bm{s}\in S_k^p} \text{  } &\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  + \rho \| \boldsymbol{S\beta} \|_0+\lambda \|\bm{S\beta}\|_2^2
+    \end{aligned}}
+    \end{equation}
+Let's now denote the solution vectors of Problem (\ref{eq:s_2}) as $\bm{\beta}^*$ and $\bm{s}^*$ respectively.
+Notice that after the substitution $\bm{\beta}\leftarrow \bm{S}\bm{\beta}$, 
+the sparse coefficient vector that solves Problem (\ref{eq:sparse_regr}) is the 
+vector $\bm{w}^*=\bm{S}^*\bm{\beta}^*$
+and \textbf{not} the vector $\bm{\beta}^*$.
+To see that, notice that if $S^*_{ii}=0$ in Eq. (\ref{eq:s_2}), then it is not necessary that
+$\beta^*_i=0$, which means that $\bm{\beta}^*$ may violate the $L_0$ sparsity constraint
+(while $\bm{w}^*$ doesn't violate it).\par 
+To account for this issue, we can rewrite Problem (\ref{eq:s_2}) as follows:
+\begin{equation} \label{eq:s_3}
+\makecell{\begin{aligned}
+     \min_{\boldsymbol{\beta}\in B,\:\bm{s}\in S_k^p} \text{  } & \sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  + \rho\| \boldsymbol{\beta} \|_0+\lambda \|\bm{\beta}\|_2^2
+\end{aligned}}
+\end{equation}
+In this new formulation, whenever $S^*_{ii}=0$, the regularizers force $\beta_i^*$ to be $0$,
+since a value of $\beta^*_i>0$ or $\beta^*_i<0$ would lead to a higher objective value, thus making the solution not optimal.
+Hence, the solution $\bm{\beta}_*$ of Formulation (\ref{eq:s_3}) is a coefficient vector
+that satisfies the $L_0$ sparsity constraint
+and minimizes the original sparse formulation (\ref{eq:sparse_regr}). 
+Thus, in the resulting formulation (\ref{eq:s_3}), a value of $s_i=0$ ensures that $\beta_i=0$
+(note that the converse is \textbf{not true}).   
+\end{solution}
+
+\item (12 points) Further show that the problem of Equation (\ref{eq:outer}) is equivalent to the problem:
+\begin{equation}
+    \label{eq:gouter}
+    \min_{\bm{s}\in S_k^p}g(\bm{s})
+\end{equation}
+where:
+\begin{equation}
+    \label{eq:inner_g}
+    %\begin{aligned}
+            g(\bm{s}) = \min_{\boldsymbol{\beta}\in \R^p} \text{  }\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  +\lambda \|\bm{\beta}\|_2^2 +\rho \bm{e}^T\bm{s}
+    %\end{aligned}
+\end{equation}
+Comment on whether $g(\bm{s})=c(\bm{s})$.
+\\
+\begin{solution}
+
+    Let's now use the following notation:
+    \begin{itemize}
+        \item $\bm{\beta}^*_c(\bm{s})$ is the optimal regression coefficient of Problem (\ref{eq:s_inner}).
+        \item $\bm{\beta}^*_g(\bm{s})$ is the optimal regression coefficient of Problem (\ref{eq:inner_g}).
+        \item $f(\bm{s}, \bm{\beta}) = \sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  +\lambda \|\bm{\beta}\|_2^2$.
+        \item $s_c^*=\argmin_{\bm{s}\in S_k^p} c(\bm{s})$.
+        \item $s_g^*=\argmin_{\bm{s}\in S_k^p} g(\bm{s})$.
+        \item $\text{supp}(\bm{v})$ is the support of a vector $\bm{v}$.
+    \end{itemize}
+    By looking at Equation (\ref{eq:s_inner}), we can see that at optimality, if $s_i=0$ then $(\bm{\beta}^{*}_c(s))_i=0$.
+    The reason for this is that since $\rho,\lambda>0$, then whenever $s_i=0$, the regularizers will push $\beta_i$ to $0$.
+    The same, however, is true for $g(\bm{s})$ as a result of the $\ell_2$ regularizer.
+    This means that $(\bm{\beta}^{*}_g(s))_i=0$ if $s_i=0$.
+    Based on that, we have that:
+    \begin{equation}
+        \label{eq:sparsity}
+        \begin{aligned}
+            &\|\bm{\beta}^{*}_c(s)\|_0= |\text{supp}(\bm{\beta}^{*}_c(s))| \leq |\text{supp}(\bm{s})| = \bm{e}^T\bm{s}\Longrightarrow\\
+            &c(\bm{s})\leq g(\bm{s})
+        \end{aligned}
+    \end{equation}
+    % We will now show that:
+    % \begin{equation}
+    %     \min_{\bm{s}\in S_k^p}c(\bm{s})= \min_{\bm{s}\in S_k^p}g(\bm{s})
+    % \end{equation}
+    % Notice that if $s_i=0$, then $(\beta^*_c(\bm{s}))_i=(\beta^*_g(\bm{s}))_i=0$, but the converse is not necessarily true.
+    We will show that:
+    \begin{equation}
+        g(\bm{s}_g^*)\leq c(\bm{s})
+    \end{equation}
+    Assume that $\exists \: i\in[p], \bm{s}\in S_k^p$ such that:
+    \begin{equation}
+        \label{eq:contr}
+        g(\bm{s}^*_g)>c(\bm{s}) \Longrightarrow f(\bm{s}_g^*, \bm{\beta}^*_g(\bm{s}_g^*))+\rho\bm{e}^T\bm{s}_g^*>f(\bm{s}, \bm{\beta}^*_c(\bm{s}))+\rho\|\bm{\beta}^*_c(\bm{s})\|_0
+    \end{equation}
+    Then, we construct vector $\bm{s}'$ with:
+    \begin{equation}
+        {s}_i'=\begin{cases}
+            s_i & \text{ if } \beta_c(s)\neq 0\\
+            0 & \text{ if } \beta_c(s)= 0
+        \end{cases}
+    \end{equation}
+    By doing that, we will have that:
+    \begin{equation}
+        \|\bm{\beta}^{*}_c(s)\|_0=\bm{e}^T\bm{s}'
+    \end{equation}
+    But from the way we constructed $\bm{s}'$, it is also true that:
+    \begin{equation}
+        f(\bm{s}, \bm{\beta}^*_c(\bm{s}))=f(\bm{s}', \bm{\beta}^*_c(\bm{s}))
+    \end{equation}
+    Combining all of that, we get that:
+    \begin{equation}
+        f(\bm{s}_g^*, \bm{\beta}^*_g(\bm{s}_g^*))+\rho\bm{e}^T\bm{s}_g^*>f(\bm{s}', \bm{\beta}^*_c(\bm{s}))+\rho\bm{e}^T\bm{s}'
+    \end{equation}
+    However, this is not possible since we assumed that $\bm{s}_g^*$ was the optimal solution, so it cannot lead to an objective that is worse than a feasible solution.
+    This leads to a contradiction and thus:
+    \begin{equation}
+        g(\bm{s}_g^*)\leq c(\bm{s})
+    \end{equation}
+    Combining that with Eq. (\ref{eq:sparse_regr}), it is clear that:
+    \begin{equation}
+        g(\bm{s}_g^*)=c(\bm{s}_c^*)
+    \end{equation}
+    so the problems are equivalent.
+    Also, from the proof, it is evident that it is not necessarily true that $g(\bm{s})=c(\bm{s})$ for all $\bm{s}$.
+    The equality could only happen in cases where the sparsity patterns of $\bm{\beta}_g^*(\bm{s})$ and $\bm{\beta}_c^*(\bm{s})$ are exactly the same.
+\end{solution}
+
+\item (10 points) Find a closed-form expression for $g(\bm{s})$. 
+
+
+\textbf{Hint}: You may consider converting the summation to matrix form first.
+
+\begin{solution}
+    Let's define: 
+    \begin{equation}
+        h(\bm{\beta})=\sum_{i\in[n]} \mu_i(y_i - \mathbf{x}^T_i \bm{S}\boldsymbol{\beta})^2  +\lambda \|\bm{\beta}\|_2^2 +\rho\bm{e}^T\bm{s}
+    \end{equation}
+
+    If we consider a diagonal matrix $\bm{M}\in\R^{n\times n}$ with $M_{ii}=\sqrt{\mu_i}$, then the objective can be rewritten as:
+    \begin{equation}
+            h(\bm{\beta})=\|\bm{My}-\bm{MX\beta}\|_2^2+\lambda \|\bm{\beta}\|_2^2+\rho\bm{e}^T\bm{s}
+    \end{equation}
+    Substituting $\hat{\bm{y}}=\bm{My}$ and $\hat{\bm{X}}=\bm{MX}$, we can rewrite $h(\bm{\beta})$ as:
+    \begin{equation}
+        \begin{aligned}
+            h(\bm{\beta})&=\|\hat{\bm{y}}-\hat{\bm{X}}\bm{\beta}\|_2^2+\lambda \|\bm{\beta}\|_2^2+\rho\bm{e}^T\bm{s}\\
+        \end{aligned}
+    \end{equation}
+    Working in exactly the same way as in Recitation $2$, we can see that:
+    \begin{equation}
+        g(\bm{s})=\hat{\bm{y}}^T\Bigg(\bm{I}_n+\frac{1}{\lambda}\sum_j s_j\hat{\bm{K}}_j\Bigg)^{-1}\hat{\bm{y}}+\rho\bm{e}^T\bm{s}
+    \end{equation}
+    where $\hat{\bm{K}}_j=\hat{\bm{X}}_j\hat{\bm{X}}_j^T$.
+
+\end{solution}
+
+\item (10 points) Assume that for some appropriate matrix $\bm{M}$ have:
+\begin{equation}
+        g(\bm{s})=\bm{y}^T\bm{M}^T(\bm{I}_n+\frac{1}{\lambda} \sum_i s_i(\bm{MX})_i(\bm{MX})_i^T)^{-1}\bm{My}+\rho \bm{e}^T\bm{s}
+\end{equation}
+
+Implement the resulting cutting-plane algorithm of Eq. (\ref{eq:gouter}).
+Use Julia/JuMP and fill the code template that exists in the HW1 folder. 
+Then, for the given dataset, report the optimal objective $g(\bm{s}^*)$ and the names of the selected features.
+
+\textbf{Hint}: You only need to complete the function "solve\_inner\_problem".
+
+\begin{solution}
+    The ojective is $5.74$ and the features selected are:
+    \begin{itemize}
+        \item Percentage of Greens Reached in Regulation
+        \item Average Puttsper Hole
+        \item Percentage of Sand Saves
+    \end{itemize}
+\end{solution}
+
+
+\end{enumerate}
+
+
+\bibliographystyle{ecta}
+\bibliography{reference.bib}
+% Let's first ignore the $L_0$-norm constraint and let's define:
+% \begin{equation}
+%     f(1) 
+% \end{equation}f
+
+
+
+%\textbf{Solution}
+
+\end{document}
