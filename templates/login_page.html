@@ -1,15 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Login - AB-Tutor{% endblock %}
+{% block title %}Login - MIT AI Tutor{% endblock %}
 
 {% block content %}
 <div class="login-container">
     <div class="login-box">
-        <h1>Welcome to AB-Tutor</h1>
+        <h1>Welcome to<br>MIT AI Tutor</h1>
+        <p class="login-subtitle">Enter your MIT email to get started</p>
         <div class="login-form">
-            <input type="text" id="userId" placeholder="Enter your User ID" class="login-input">
-            <button onclick="login()" class="login-button">Login</button>
+            <input type="email" id="mitEmail" placeholder="your-email@mit.edu" class="login-input">
+            <button onclick="login()" class="login-button">Start Tutoring</button>
         </div>
+        <p class="login-note">Only MIT email addresses are accepted</p>
     </div>
 </div>
 {% endblock %}
@@ -17,9 +19,15 @@
 {% block scripts %}
 <script>
 async function login() {
-    const userId = document.getElementById('userId').value;
-    if (!userId) {
-        alert('Please enter a User ID');
+    const email = document.getElementById('mitEmail').value;
+    if (!email) {
+        alert('Please enter your MIT email address');
+        return;
+    }
+
+    // Validate MIT email format
+    if (!email.endsWith('@mit.edu')) {
+        alert('Please enter a valid MIT email address ending with @mit.edu');
         return;
     }
 
@@ -29,14 +37,18 @@ async function login() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ id: userId })
+            body: JSON.stringify({ email: email })
         });
 
         if (response.ok) {
-            window.location.href = '/';
+            const data = await response.json();
+            // Store session info and redirect to chat
+            localStorage.setItem('userEmail', email);
+            localStorage.setItem('sessionId', data.session_id);
+            window.location.href = '/chat';
         } else {
             const data = await response.json();
-            alert(data.message || 'Login failed');
+            alert(data.detail || 'Login failed');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -44,7 +56,7 @@ async function login() {
     }
 }
 
-document.getElementById('userId').addEventListener('keypress', function(e) {
+document.getElementById('mitEmail').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         login();
     }

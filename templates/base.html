@@ -6,7 +6,7 @@
     <title>{% block title %}BeaverGPT{% endblock %}</title>
 
     <!-- Link to the favicon -->
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='BeaverOpt_logo.png') }}" />
+    <link rel="icon" type="image/png" href="/static/BeaverOpt_logo.png" />
     
     <!-- External CDN Dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.2/marked.min.js"></script>
@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.15.3/katex.min.css">
     
     <!-- Internal Static Files -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="/static/styles.css">
     {% block extra_head %}{% endblock %}
 </head>
 <body>

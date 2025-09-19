@@ -1,14 +1,16 @@
-"""AI Tutor chatbot using open-learning-ai-tutor package"""
+"""AI Tutor chatbot using open-learning-ai-tutor package with Supabase"""
 
-import json
 import logging
+import os
+import json
 from collections.abc import AsyncGenerator
 from typing import Optional
 from uuid import uuid4
+from datetime import datetime, timedelta
 
-from channels.db import database_sync_to_async
-from django.conf import settings
-from langchain_community.chat_models import ChatLiteLLM
+from supabase import create_client, Client
+# Update this import to use the new package
+from langchain_litellm import ChatLiteLLM
 from langchain_core.messages import HumanMessage
 from langchain_core.messages.ai import AIMessageChunk
 from open_learning_ai_tutor.message_tutor import message_tutor
@@ -20,21 +22,116 @@ from open_learning_ai_tutor.utils import (
     tutor_output_to_json,
 )
 
-from ai_chatbots.models import TutorBotOutput
-
 log = logging.getLogger(__name__)
 
 
-@database_sync_to_async
-def create_tutorbot_output(thread_id, chat_json):
-    return TutorBotOutput.objects.create(
-        thread_id=thread_id, chat_json=chat_json
-    )
+class SupabaseStorage:
+    """Supabase storage handler for chat history"""
+    
+    def __init__(self):
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_KEY")
+        if not url or not key:
+            raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
+        self.supabase: Client = create_client(url, key)
+    
+    async def create_tutorbot_output(self, thread_id: str, chat_json: str):
+        """Save chat output to Supabase"""
+        try:
+            data = {
+                "thread_id": thread_id,
+                "chat_json": chat_json,
+                "created_at": datetime.utcnow().isoformat()
+            }
+            result = self.supabase.table("tutorbot_outputs").insert(data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error saving to Supabase: {e}")
+            return None
+    
+    async def get_history(self, thread_id: str):
+        """Get latest chat history for a thread from Supabase"""
+        try:
+            result = self.supabase.table("tutorbot_outputs")\
+                .select("*")\
+                .eq("thread_id", thread_id)\
+                .order("created_at", desc=True)\
+                .limit(1)\
+                .execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error fetching from Supabase: {e}")
+            return None
+
+    # User management functions
+    async def create_or_get_user(self, email: str):
+        """Create a new user or get existing user by email"""
+        try:
+            # Try to get existing user
+            result = self.supabase.table("users")\
+                .select("*")\
+                .eq("email", email)\
+                .execute()
+            
+            if result.data:
+                # Update last_login for existing user
+                user = result.data[0]
+                self.supabase.table("users")\
+                    .update({"last_login": datetime.utcnow().isoformat()})\
+                    .eq("email", email)\
+                    .execute()
+                return user
+            else:
+                # Create new user
+                new_user = {
+                    "email": email,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "last_login": datetime.utcnow().isoformat()
+                }
+                result = self.supabase.table("users").insert(new_user).execute()
+                return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error creating/getting user: {e}")
+            return None
+    
+    async def create_session(self, email: str, session_id: str):
+        """Create a new session for the user"""
+        try:
+            session_data = {
+                "session_id": session_id,
+                "user_email": email,
+                "created_at": datetime.utcnow().isoformat(),
+                "expires_at": (datetime.utcnow() + timedelta(days=30)).isoformat()
+            }
+            result = self.supabase.table("user_sessions").insert(session_data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error creating session: {e}")
+            return None
+    
+    async def get_session(self, session_id: str):
+        """Get session by session_id"""
+        try:
+            result = self.supabase.table("user_sessions")\
+                .select("*")\
+                .eq("session_id", session_id)\
+                .gt("expires_at", datetime.utcnow().isoformat())\
+                .execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error getting session: {e}")
+            return None
 
 
-@database_sync_to_async
-def get_history(thread_id):
-    return TutorBotOutput.objects.filter(thread_id=thread_id).last()
+# Global storage instance (lazy-loaded)
+_storage = None
+
+def get_storage():
+    """Get or create the storage instance"""
+    global _storage
+    if _storage is None:
+        _storage = SupabaseStorage()
+    return _storage
 
 
 class TutorBot:
@@ -57,8 +154,8 @@ class TutorBot:
     ):
         """Initialize the AI tutor chatbot"""
         self.bot_name = name
-        self.model = model or settings.AI_DEFAULT_TUTOR_MODEL
-        self.temperature = temperature or settings.AI_DEFAULT_TEMPERATURE
+        self.model = model or os.getenv("AI_DEFAULT_TUTOR_MODEL", "claude-3-haiku-20240307")
+        self.temperature = float(os.getenv("AI_DEFAULT_TEMPERATURE", "0.7")) if temperature is None else temperature
         self.user_id = user_id
         self.thread_id = thread_id or uuid4().hex
         
@@ -71,7 +168,7 @@ class TutorBot:
         
         # Load problem set data
         self.problem_set = get_canvas_problem_set(
-            self.run_readable_id, self.problem_set_title
+            self.run_readable_id or "", self.problem_set_title or ""
         )
         
         # Create LLM for the tutor package
@@ -82,7 +179,8 @@ class TutorBot:
         llm = ChatLiteLLM(model=self.model)
         
         # Set temperature if supported
-        if self.temperature and self.model not in getattr(settings, 'AI_UNSUPPORTED_TEMP_MODELS', []):
+        unsupported_models = os.getenv('AI_UNSUPPORTED_TEMP_MODELS', '').split(',')
+        if self.temperature and self.model not in unsupported_models:
             llm.temperature = self.temperature
             
         return llm
@@ -110,10 +208,11 @@ class TutorBot:
         """Get tutor response using the open-learning-ai-tutor package"""
         
         # Load conversation history
-        history = await get_history(self.thread_id)
+        storage = get_storage()
+        history = await storage.get_history(self.thread_id)
         
         if history:
-            json_history = json.loads(history.chat_json)
+            json_history = json.loads(history["chat_json"])
             chat_history = json_to_messages(
                 json_history.get("chat_history", [])
             ) + [HumanMessage(content=message)]
@@ -125,10 +224,12 @@ class TutorBot:
             assessment_history = []
 
         try:
-            # Call the tutor package
+            # Call the tutor package - convert problem_set to string
+            problem_set_str = json.dumps(self.problem_set) if isinstance(self.problem_set, dict) else str(self.problem_set)
+            
             result = message_tutor(
                 self.problem,
-                self.problem_set,
+                problem_set_str,
                 self.llm,
                 [HumanMessage(content=message)],
                 chat_history,
@@ -151,13 +252,14 @@ class TutorBot:
                 
                 async for chunk in generator:
                     if (
+                        isinstance(chunk, tuple) and len(chunk) >= 2 and
                         chunk[0] == "messages"
                         and chunk[1]
                         and isinstance(chunk[1][0], AIMessageChunk)
                     ):
                         full_response += chunk[1][0].content
                         yield chunk[1][0].content
-                    elif chunk[0] == "values":
+                    elif isinstance(chunk, tuple) and len(chunk) >= 2 and chunk[0] == "values":
                         new_history = filter_out_system_messages(chunk[1]["messages"])
 
                 # Save to database
@@ -169,7 +271,8 @@ class TutorBot:
                 json_output = tutor_output_to_json(
                     new_history, new_intent_history, new_assessment_history, metadata
                 )
-                await create_tutorbot_output(self.thread_id, json_output)
+                storage = get_storage()
+                await storage.create_tutorbot_output(self.thread_id, json_output)
 
         except Exception:
             yield '<!-- {"error":{"message":"An error occurred, please try again"}} -->'
@@ -298,7 +401,8 @@ class TutorBot:
         json_output = tutor_output_to_json(
             new_history, new_intent_history, new_assessment_history, metadata
         )
-        await create_tutorbot_output(
+        storage = get_storage()
+        await storage.create_tutorbot_output(
             self.thread_id, json_output
         )
         
@@ -307,6 +411,52 @@ class TutorBot:
             "chosen_content": chosen_content,
             "variant": chosen_variant,
         }
+
+
+class ChatBot:
+    """
+    Simplified ChatBot wrapper for FastAPI integration
+    """
+    
+    def __init__(self):
+        """Initialize the ChatBot"""
+        self.default_model = os.getenv("AI_DEFAULT_TUTOR_MODEL", "claude-3-haiku-20240307")
+        self.default_temperature = float(os.getenv("AI_DEFAULT_TEMPERATURE", "0.7"))
+    
+    async def process_message(
+        self,
+        message: str,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        image_data: Optional[str] = None,
+        source_type: str = "default"
+    ) -> str:
+        """
+        Process a message and return a response
+        
+        This is the interface expected by main.py
+        """
+        try:
+            # Create a TutorBot instance for this conversation
+            tutor_bot = TutorBot(
+                user_id=user_id or "anonymous",
+                thread_id=session_id,
+                model=self.default_model,
+                temperature=self.default_temperature,
+                problem_set_title=None,  # Can be set based on context later
+                problem="",  # Can be set based on context later
+            )
+            
+            # Get response from tutor bot
+            response_parts = []
+            async for chunk in tutor_bot.get_completion(message):
+                response_parts.append(chunk)
+            
+            return "".join(response_parts)
+            
+        except Exception as e:
+            log.exception(f"Error in ChatBot.process_message: {e}")
+            return "I'm sorry, I encountered an error while processing your message. Please try again."
 
 
 def get_canvas_problem_set(run_readable_id: str, problem_set_title: str) -> dict:

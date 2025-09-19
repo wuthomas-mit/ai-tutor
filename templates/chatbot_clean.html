@@ -2,6 +2,13 @@
 
 {% block content %}
 <div class="chat-container">
+    <div class="chat-header">
+        <h2>MIT AI Tutor</h2>
+        <div class="user-info">
+            <span id="user-email">Not logged in</span>
+            <button onclick="logout()" class="logout-btn">Logout</button>
+        </div>
+    </div>
     <div class="messages" id="messages">
         <!-- Messages will be inserted here -->
     </div>
@@ -9,17 +16,39 @@
         <textarea
             id="message-input"
             class="message-input"
-            placeholder="Ask a question to AB-Tutor"
+            placeholder="Ask a question to the AI Tutor"
             rows="1"
             autofocus
         ></textarea>
         <div class="disclaimer">
-            AB-Tutor may make mistakes on exercise questions, be critical of its answers
+            AI Tutor may make mistakes on exercise questions, be critical of its answers
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script>
+// Check if user is logged in on page load
+window.addEventListener('DOMContentLoaded', function() {
+    const userEmail = localStorage.getItem('userEmail');
+    const sessionId = localStorage.getItem('sessionId');
+    
+    if (!userEmail || !sessionId) {
+        // Redirect to login if not logged in
+        window.location.href = '/';
+        return;
+    }
+    
+    // Display user email
+    document.getElementById('user-email').textContent = userEmail;
+});
+
+function logout() {
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('sessionId');
+    window.location.href = '/';
+}
+</script>
+<script src="/static/script.js"></script>
 {% endblock %}

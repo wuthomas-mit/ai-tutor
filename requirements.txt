@@ -1,12 +1,24 @@
+# FastAPI dependencies
+fastapi
+uvicorn
+jinja2
+python-multipart
+
+# AI/Chatbot dependencies (from your existing chatbot.py)
 anthropic
-numpy
-matplotlib
 openai
-python-dotenv
-flask
-flask_session
-flask_sqlalchemy
 langchain
 langchain-core
 langchain-community
 langchain-anthropic
+open-learning-ai-tutor
+litellm
+langchain-litellm
+
+# Database
+supabase
+
+# Utility dependencies
+python-dotenv
+numpy
+matplotlib
