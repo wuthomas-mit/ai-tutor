@@ -11,6 +11,9 @@ langchain
 langchain-core
 langchain-community
 langchain-anthropic
+langchain-experimental
+langgraph
+langsmith
 litellm
 langchain-litellm
 
