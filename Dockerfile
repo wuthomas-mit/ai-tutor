@@ -11,13 +11,13 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy ALL application files (including open_learning_ai_tutor)
 COPY . .
+
+# Make sure the package is properly structured
+RUN ls -la open_learning_ai_tutor/ || echo "open_learning_ai_tutor directory not found"
 
 # Expose port
 EXPOSE 8000
