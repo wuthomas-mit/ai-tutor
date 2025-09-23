@@ -1,6 +1,6 @@
 # FastAPI dependencies
 fastapi
-uvicorn
+uvicorn[standard]
 jinja2
 python-multipart
 
@@ -17,6 +17,10 @@ langchain-litellm
 
 # Database
 supabase
+psycopg2-binary
+
+# Image processing (for your image chat feature)
+pillow
 
 # Utility dependencies
 python-dotenv
