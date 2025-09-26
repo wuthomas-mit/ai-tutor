@@ -350,13 +350,24 @@ class TutorBot:
                 json_history.get("chat_history", [])
             ) + [HumanMessage(content=message)]
             
-            # Fix: Check if intent_history is already a list or needs parsing
+            # Fix: Properly handle intent_history format
             intent_history_raw = json_history.get("intent_history", [])
             if isinstance(intent_history_raw, list):
-                # Already parsed/serialized as list
-                intent_history = intent_history_raw
+                # Check if it's already a list of serialized intents or needs conversion
+                if intent_history_raw and isinstance(intent_history_raw[0], str):
+                    # It's a list of JSON strings, parse each one
+                    intent_history = []
+                    for intent_str in intent_history_raw:
+                        try:
+                            intent_history.append(json_to_intent_list(intent_str))
+                        except:
+                            # If parsing fails, create empty intent list
+                            intent_history.append([])
+                else:
+                    # It's already in the correct format or empty
+                    intent_history = intent_history_raw
             else:
-                # Still a JSON string, needs parsing
+                # It's a single JSON string
                 intent_history = json_to_intent_list(intent_history_raw)
             
             # Fix: Check if assessment_history is already a list or needs parsing  
