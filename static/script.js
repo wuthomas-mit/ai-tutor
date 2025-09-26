@@ -390,7 +390,7 @@ function handleABTestResponse(abTestData) {
             </div>
             
             <div class="ab-test-feedback">
-                <label for="ab-test-reason">Before selection, explain why you chose this?</label>
+                <label for="ab-test-reason">Before selecting, explain your choice.</label>
                 <textarea id="ab-test-reason" placeholder="Your feedback helps improve the AI tutor..."></textarea>
             </div>
         </div>
