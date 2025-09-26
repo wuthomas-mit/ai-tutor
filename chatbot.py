@@ -155,17 +155,35 @@ class SupabaseStorage:
     async def save_prompt_variant(self, variant_name: str, variant_type: str, prompt_template: str, description: Optional[str] = None):
         """Save or update a prompt variant"""
         try:
-            data = {
-                "variant_name": variant_name,
-                "variant_type": variant_type,
-                "prompt_template": prompt_template,
-                "description": description,
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
-            }
-            # Use upsert to handle updates
-            result = self.supabase.table("prompt_variants").upsert(data).execute()
-            return result.data[0] if result.data else None
+            # Check if variant already exists
+            existing = await self.get_prompt_variant(variant_name)
+            
+            if existing:
+                # Update existing variant
+                update_data = {
+                    "variant_type": variant_type,
+                    "prompt_template": prompt_template,
+                    "description": description,
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                result = self.supabase.table("prompt_variants")\
+                    .update(update_data)\
+                    .eq("variant_name", variant_name)\
+                    .execute()
+                return result.data[0] if result.data else existing
+            else:
+                # Insert new variant
+                insert_data = {
+                    "variant_name": variant_name,
+                    "variant_type": variant_type,
+                    "prompt_template": prompt_template,
+                    "description": description,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                result = self.supabase.table("prompt_variants").insert(insert_data).execute()
+                return result.data[0] if result.data else None
+                
         except Exception as e:
             log.error(f"Error saving prompt variant to Supabase: {e}")
             return None
@@ -452,6 +470,9 @@ class TutorBot:
         """Handle A/B test responses by collecting both variants and yielding structured data"""
         ab_test_data, new_intent_history, new_assessment_history = result
         
+        # Auto-populate prompt variants whenever A/B test runs
+        await self._populate_ab_test_variants()
+        
         # Collect both responses completely
         control_response = ""
         treatment_response = ""
@@ -547,6 +568,16 @@ class TutorBot:
         
         # Yield the structured A/B test response as JSON
         yield f'<!-- {json.dumps(ab_response)} -->'
+    
+    async def _populate_ab_test_variants(self):
+        """Populate prompt variants whenever an A/B test runs"""
+        try:
+            storage = get_storage()
+            await storage.initialize_prompt_variants()
+            log.info("Auto-populated prompt variants for A/B test")
+        except Exception as e:
+            log.error(f"Error populating A/B test variants: {e}")
+            # Don't fail the A/B test if variant saving fails
     
     async def save_ab_test_choice(self, ab_response_data: dict, chosen_variant: str, user_preference_reason: str = "", user_email: Optional[str] = None):
         """Save the user's A/B test choice and update chat history"""
