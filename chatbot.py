@@ -152,6 +152,107 @@ class SupabaseStorage:
             log.error(f"Error saving feedback to Supabase: {e}")
             return None
 
+    async def save_prompt_variant(self, variant_name: str, variant_type: str, prompt_template: str, description: Optional[str] = None):
+        """Save or update a prompt variant"""
+        try:
+            data = {
+                "variant_name": variant_name,
+                "variant_type": variant_type,
+                "prompt_template": prompt_template,
+                "description": description,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            # Use upsert to handle updates
+            result = self.supabase.table("prompt_variants").upsert(data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error saving prompt variant to Supabase: {e}")
+            return None
+
+    async def get_prompt_variant(self, variant_name: str):
+        """Get a specific prompt variant"""
+        try:
+            result = self.supabase.table("prompt_variants")\
+                .select("*")\
+                .eq("variant_name", variant_name)\
+                .execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error fetching prompt variant from Supabase: {e}")
+            return None
+
+    async def get_all_prompt_variants(self, variant_type: Optional[str] = None):
+        """Get all prompt variants, optionally filtered by type"""
+        try:
+            query = self.supabase.table("prompt_variants").select("*")
+            if variant_type:
+                query = query.eq("variant_type", variant_type)
+            result = query.execute()
+            return result.data
+        except Exception as e:
+            log.error(f"Error fetching prompt variants from Supabase: {e}")
+            return []
+
+    async def initialize_prompt_variants(self):
+        """Initialize prompt_variants table with current variants from prompts.py"""
+        try:
+            # Import here to avoid circular imports
+            from open_learning_ai_tutor.prompts import (
+                PROBLEM_PROMPT_TEMPLATE, 
+                PROBLEM_PROMPT_TEMPLATE_V2,
+                intent_mapping_variants
+            )
+            
+            # Problem template variants
+            problem_variants = [
+                {
+                    "variant_name": "tutor_problem_v1",
+                    "variant_type": "problem_template",
+                    "prompt_template": PROBLEM_PROMPT_TEMPLATE,
+                    "description": "Original problem template - more directive and structured"
+                },
+                {
+                    "variant_name": "tutor_problem_v2", 
+                    "variant_type": "problem_template",
+                    "prompt_template": PROBLEM_PROMPT_TEMPLATE_V2,
+                    "description": "V2 problem template - more encouraging and discovery-focused"
+                }
+            ]
+            
+            # Intent variants
+            intent_variants = []
+            for variant_name, prompt_text in intent_mapping_variants.items():
+                intent_variants.append({
+                    "variant_name": variant_name,
+                    "variant_type": "intent",
+                    "prompt_template": prompt_text,
+                    "description": f"Intent variant for {variant_name.split('_')[0]} intent"
+                })
+            
+            # Save all variants
+            all_variants = problem_variants + intent_variants
+            results = []
+            
+            for variant in all_variants:
+                result = await self.save_prompt_variant(
+                    variant["variant_name"],
+                    variant["variant_type"], 
+                    variant["prompt_template"],
+                    variant["description"]
+                )
+                if result:
+                    results.append(result)
+                    log.info(f"Saved prompt variant: {variant['variant_name']}")
+                else:
+                    log.error(f"Failed to save prompt variant: {variant['variant_name']}")
+            
+            return results
+            
+        except Exception as e:
+            log.error(f"Error initializing prompt variants: {e}")
+            return []
+
 
 # Global storage instance (lazy-loaded)
 _storage = None
@@ -391,6 +492,14 @@ class TutorBot:
                 "problem_set_title": self.problem_set_title,
                 "run_readable_id": self.run_readable_id,
             },
+            # Store A/B test variant information
+            "ab_test_variants_used": {
+                "problem_template": {
+                    "control": "tutor_problem_v1",
+                    "treatment": "tutor_problem_v2"
+                }
+                # Intent variants will be added here when they're active
+            },
             # Store histories for when user makes choice (serialized)
             "_control_history": serialize_messages(control_history),
             "_treatment_history": serialize_messages(treatment_history),
@@ -425,6 +534,7 @@ class TutorBot:
             "run_readable_id": self.run_readable_id,
             "ab_test_chosen_variant": chosen_variant,
             "ab_test_metadata": ab_response_data["metadata"],
+            "ab_test_variants_used": ab_response_data.get("ab_test_variants_used", {}),
             "user_preference_reason": user_preference_reason,
         }
         
