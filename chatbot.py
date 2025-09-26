@@ -336,7 +336,7 @@ class TutorBot:
         self,
         message: str,
         *,
-        debug: bool = True,  # Enable debug by default to see what's happening
+        debug: bool = True,
     ) -> AsyncGenerator[str, None]:
         """Get tutor response using the open-learning-ai-tutor package"""
         
@@ -349,8 +349,35 @@ class TutorBot:
             chat_history = json_to_messages(
                 json_history.get("chat_history", [])
             ) + [HumanMessage(content=message)]
-            intent_history = json_to_intent_list(json_history["intent_history"])
-            assessment_history = json_to_messages(json_history["assessment_history"])
+            
+            # Fix: Check if intent_history is already a list or needs parsing
+            intent_history_raw = json_history.get("intent_history", [])
+            if isinstance(intent_history_raw, list):
+                # Already parsed/serialized as list
+                intent_history = intent_history_raw
+            else:
+                # Still a JSON string, needs parsing
+                intent_history = json_to_intent_list(intent_history_raw)
+            
+            # Fix: Check if assessment_history is already a list or needs parsing  
+            assessment_history_raw = json_history.get("assessment_history", [])
+            if isinstance(assessment_history_raw, list):
+                # Already serialized as list, convert back to messages
+                assessment_history = []
+                for msg_data in assessment_history_raw:
+                    if isinstance(msg_data, dict) and "type" in msg_data and "content" in msg_data:
+                        if msg_data["type"] == "HumanMessage":
+                            assessment_history.append(HumanMessage(content=msg_data["content"]))
+                        elif msg_data["type"] == "AIMessage":
+                            from langchain_core.messages import AIMessage
+                            assessment_history.append(AIMessage(content=msg_data["content"]))
+                    else:
+                        # Handle string format
+                        from langchain_core.messages import AIMessage
+                        assessment_history.append(AIMessage(content=str(msg_data)))
+            else:
+                # Still needs parsing
+                assessment_history = json_to_messages(assessment_history_raw)
         else:
             chat_history = [HumanMessage(content=message)]
             intent_history = []
