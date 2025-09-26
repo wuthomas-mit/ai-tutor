@@ -8,6 +8,9 @@ from chatbot import ChatBot, get_storage
 from typing import Optional
 from uuid import uuid4
 import re
+import logging
+
+log = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -87,7 +90,7 @@ async def login(login_request: LoginRequest):
 async def ask_question(chat_request: ChatRequest):
     try:
         # Use your async chatbot
-        response = await chatbot.process_message(
+        result = await chatbot.process_message(
             message=chat_request.message,
             user_id=chat_request.user_id,
             session_id=chat_request.session_id,
@@ -96,15 +99,45 @@ async def ask_question(chat_request: ChatRequest):
             problem_set=chat_request.problem_set
         )
         
-        return {"response": response}
+        return {
+            "response": result["response"],
+            "thread_id": result["thread_id"]
+        }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class FeedbackRequest(BaseModel):
+    thread_id: Optional[str] = None
+    message: str
+    feedback: bool
+    user_email: Optional[str] = None
+
 @app.post("/feedback")
-async def submit_feedback(feedback_data: dict):
-    # Handle feedback without database for now
-    return {"status": "success", "message": "Feedback received"}
+async def submit_feedback(feedback_data: FeedbackRequest):
+    try:
+        # Get the storage instance
+        storage = get_storage()
+        
+        # Use thread_id if provided, otherwise generate a default one
+        thread_id = feedback_data.thread_id or "unknown"
+        
+        # Save feedback to database
+        result = await storage.save_feedback(
+            thread_id=thread_id,
+            message_content=feedback_data.message,
+            feedback_type=feedback_data.feedback,
+            user_email=feedback_data.user_email
+        )
+        
+        if result:
+            return {"status": "success", "message": "Feedback saved successfully", "feedback_id": result.get("id")}
+        else:
+            return {"status": "error", "message": "Failed to save feedback"}
+            
+    except Exception as e:
+        log.error(f"Error in feedback endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save feedback: {str(e)}")
 
 @app.post("/ab-test-choice")
 async def submit_ab_test_choice(choice_request: ABTestChoiceRequest):

@@ -130,6 +130,28 @@ class SupabaseStorage:
             log.error(f"Error getting session: {e}")
             return None
 
+    async def save_feedback(self, thread_id: str, message_content: str, feedback_type: bool, user_email: Optional[str] = None):
+        """Save user feedback for a specific message/response"""
+        try:
+            # First, get the latest tutorbot_output for this thread to establish the relationship
+            latest_output = await self.get_history(thread_id)
+            tutorbot_output_id = latest_output.get("id") if latest_output else None
+            
+            feedback_data = {
+                "thread_id": thread_id,
+                "tutorbot_output_id": tutorbot_output_id,  # Link to the specific conversation
+                "message_content": message_content,
+                "feedback_type": feedback_type,  # True for thumbs up, False for thumbs down
+                "user_email": user_email,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+            
+            result = self.supabase.table("feedback").insert(feedback_data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            log.error(f"Error saving feedback to Supabase: {e}")
+            return None
+
 
 # Global storage instance (lazy-loaded)
 _storage = None
@@ -444,7 +466,7 @@ class ChatBot:
         image_data: Optional[str] = None,
         source_type: str = "default",
         problem_set: Optional[str] = None
-    ) -> str:
+    ) -> dict:
         """
         Process a message and return a response
         
@@ -480,11 +502,17 @@ class ChatBot:
             async for chunk in tutor_bot.get_completion(message):
                 response_parts.append(chunk)
             
-            return "".join(response_parts)
+            return {
+                "response": "".join(response_parts),
+                "thread_id": tutor_bot.thread_id
+            }
             
         except Exception as e:
             log.exception(f"Error in ChatBot.process_message: {e}")
-            return "I'm sorry, I encountered an error while processing your message. Please try again."
+            return {
+                "response": "I'm sorry, I encountered an error while processing your message. Please try again.",
+                "thread_id": session_id
+            }
 
 
 def get_canvas_problem_set(run_readable_id: str, problem_set_title: str) -> dict:

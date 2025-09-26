@@ -153,9 +153,30 @@ function createFeedbackButtons() {
     return container;
 }
 
+// Function to convert HTML back to plain text for feedback storage
+function htmlToPlainText(html) {
+    // Create a temporary div element
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Get the text content, which will strip all HTML tags
+    let plainText = tempDiv.textContent || tempDiv.innerText || '';
+    
+    // Clean up extra whitespace and line breaks
+    plainText = plainText.replace(/\s+/g, ' ').trim();
+    
+    return plainText;
+}
+
 async function saveFeedback(type) {
     try {
-        const lastBotMessage = document.querySelector('.bot-message:last-of-type .message-content').innerHTML;
+        const lastBotMessage = document.querySelector('.bot-message:last-of-type');
+        const originalResponse = lastBotMessage.dataset.originalResponse;
+        const threadId = lastBotMessage.dataset.threadId;
+        const userEmail = localStorage.getItem('userEmail');
+        
+        // Convert HTML response to plain text for cleaner database storage
+        const plainTextResponse = htmlToPlainText(originalResponse);
         
         await fetch('/feedback', {
             method: 'POST',
@@ -163,10 +184,14 @@ async function saveFeedback(type) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-                message: lastBotMessage,
-                feedback: type 
+                thread_id: threadId,
+                message: plainTextResponse,
+                feedback: type,
+                user_email: userEmail
             }),
         });
+        
+        console.log('Feedback saved successfully');
     } catch (error) {
         console.error('Error saving feedback:', error);
     }
@@ -298,6 +323,10 @@ function handleNormalResponse(data) {
     // Add bot message to chat
     const botMessageElement = document.createElement('div');
     botMessageElement.className = 'message bot-message';
+    
+    // Store thread_id and original response text for feedback purposes
+    botMessageElement.dataset.threadId = data.thread_id;
+    botMessageElement.dataset.originalResponse = data.response;
     
     // Convert markdown and render LaTeX
     const renderedMessage = marked.parse(data.response);
