@@ -123,17 +123,27 @@ function createFeedbackButtons() {
     thumbsDown.innerHTML = '👎';
     
     thumbsUp.addEventListener('click', function() {
-        if (!this.classList.contains('active-positive')) {
+        if (!this.disabled && !thumbsDown.disabled) {
             this.classList.add('active-positive');
             thumbsDown.classList.remove('active-negative');
+            
+            // Disable both buttons after feedback is given
+            this.disabled = true;
+            thumbsDown.disabled = true;
+            
             saveFeedback(true);
         }
     });
     
     thumbsDown.addEventListener('click', function() {
-        if (!this.classList.contains('active-negative')) {
+        if (!this.disabled && !thumbsUp.disabled) {
             this.classList.add('active-negative');
             thumbsUp.classList.remove('active-positive');
+            
+            // Disable both buttons after feedback is given
+            this.disabled = true;
+            thumbsUp.disabled = true;
+            
             saveFeedback(false);
         }
     });

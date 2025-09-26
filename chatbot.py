@@ -31,9 +31,16 @@ class SupabaseStorage:
     def __init__(self):
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_KEY")
+        environment = os.getenv("ENVIRONMENT", "development")
+        
         if not url or not key:
             raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
+        
         self.supabase: Client = create_client(url, key)
+        self.environment = environment
+        
+        log.info(f"Connected to Supabase environment: {environment}")
+        log.info(f"Supabase URL: {url[:30]}..." if url else "No URL")
     
     async def create_tutorbot_output(self, thread_id: str, chat_json: str, user_email: Optional[str] = None):
         """Save chat output to Supabase"""
